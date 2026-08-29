@@ -14,20 +14,20 @@ namespace PentabServer.Services
         public int Height { get; set; }
         public bool IsPrimary { get; set; }
 
-        public override string ToString() => $"Monitor {Index}: {Width}x{Height} ({(IsPrimary ? "Primary" : "Secondary")})";
+        public override string ToString() => $"{(IsPrimary ? "★ Primary Monitor" : $"Monitor {Index}")}: {Width}x{Height} (Left={Left}, Top={Top})";
     }
 
     public class ScreenMapper
     {
-        private const int SM_XVIRTUALSCREEN = 76;
-        private const int SM_YVIRTUALSCREEN = 77;
-        private const int SM_CXVIRTUALSCREEN = 78;
-        private const int SM_CYVIRTUALSCREEN = 79;
-        private const int SM_CXSCREEN = 0;
-        private const int SM_CYSCREEN = 1;
+        public const int SM_XVIRTUALSCREEN = 76;
+        public const int SM_YVIRTUALSCREEN = 77;
+        public const int SM_CXVIRTUALSCREEN = 78;
+        public const int SM_CYVIRTUALSCREEN = 79;
+        public const int SM_CXSCREEN = 0;
+        public const int SM_CYSCREEN = 1;
 
         [DllImport("user32.dll")]
-        private static extern int GetSystemMetrics(int nIndex);
+        public static extern int GetSystemMetrics(int nIndex);
 
         private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
 
@@ -57,9 +57,8 @@ namespace PentabServer.Services
             public string szDevice;
         }
 
-        private const uint MONITORINFOF_PRIMARY = 0x00000001;
-
-        public int SelectedMonitorIndex { get; set; } = -1; // -1 means Primary Monitor or Full Virtual Desk
+        // -1 means Primary Monitor (Default), -2 means Entire Virtual Desktop
+        public int SelectedMonitorIndex { get; set; } = -1;
 
         public List<DisplayMonitorInfo> GetMonitors()
         {
@@ -72,15 +71,21 @@ namespace PentabServer.Services
                 mi.cbSize = Marshal.SizeOf(typeof(MONITORINFOEX));
                 if (GetMonitorInfo(hMonitor, ref mi))
                 {
+                    int left = mi.rcMonitor.Left;
+                    int top = mi.rcMonitor.Top;
+                    int width = mi.rcMonitor.Right - mi.rcMonitor.Left;
+                    int height = mi.rcMonitor.Bottom - mi.rcMonitor.Top;
+                    bool isPrimary = (left == 0 && top == 0) || (mi.dwFlags & 1) != 0;
+
                     monitors.Add(new DisplayMonitorInfo
                     {
                         Index = index++,
                         Name = mi.szDevice,
-                        Left = mi.rcMonitor.Left,
-                        Top = mi.rcMonitor.Top,
-                        Width = mi.rcMonitor.Right - mi.rcMonitor.Left,
-                        Height = mi.rcMonitor.Bottom - mi.rcMonitor.Top,
-                        IsPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0
+                        Left = left,
+                        Top = top,
+                        Width = width,
+                        Height = height,
+                        IsPrimary = isPrimary
                     });
                 }
                 return true;
@@ -89,7 +94,7 @@ namespace PentabServer.Services
             return monitors;
         }
 
-        public (int absX, int absY) MapToAbsoluteCoordinates(float normX, float normY)
+        public (int dx, int dy, int pixelX, int pixelY) MapToVirtualDesktop(float normX, float normY)
         {
             int virtLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
             int virtTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -105,7 +110,15 @@ namespace PentabServer.Services
             double targetHeight;
 
             var monitors = GetMonitors();
-            if (SelectedMonitorIndex >= 0 && SelectedMonitorIndex < monitors.Count)
+
+            if (SelectedMonitorIndex == -2) // Entire Virtual Desktop
+            {
+                targetLeft = virtLeft;
+                targetTop = virtTop;
+                targetWidth = virtWidth;
+                targetHeight = virtHeight;
+            }
+            else if (SelectedMonitorIndex >= 0 && SelectedMonitorIndex < monitors.Count)
             {
                 var m = monitors[SelectedMonitorIndex];
                 targetLeft = m.Left;
@@ -115,9 +128,9 @@ namespace PentabServer.Services
             }
             else
             {
-                // Default to Primary Monitor or Entire Virtual Screen
-                var primary = monitors.Find(m => m.IsPrimary);
-                if (primary != null && SelectedMonitorIndex == -2)
+                // Default: Primary Monitor (Always Left=0, Top=0)
+                var primary = monitors.Find(m => m.IsPrimary) ?? monitors.Find(m => m.Left == 0 && m.Top == 0);
+                if (primary != null)
                 {
                     targetLeft = primary.Left;
                     targetTop = primary.Top;
@@ -126,24 +139,24 @@ namespace PentabServer.Services
                 }
                 else
                 {
-                    targetLeft = virtLeft;
-                    targetTop = virtTop;
-                    targetWidth = virtWidth;
-                    targetHeight = virtHeight;
+                    targetLeft = 0;
+                    targetTop = 0;
+                    targetWidth = GetSystemMetrics(SM_CXSCREEN);
+                    targetHeight = GetSystemMetrics(SM_CYSCREEN);
                 }
             }
 
-            double pixelX = targetLeft + (normX * targetWidth);
-            double pixelY = targetTop + (normY * targetHeight);
+            int pixelX = (int)Math.Round(targetLeft + (normX * (targetWidth - 1)));
+            int pixelY = (int)Math.Round(targetTop + (normY * (targetHeight - 1)));
 
-            // Convert pixel to absolute 0..65535 scale across virtual screen
-            int absX = (int)Math.Round(((pixelX - virtLeft) * 65535.0) / (virtWidth - 1));
-            int absY = (int)Math.Round(((pixelY - virtTop) * 65535.0) / (virtHeight - 1));
+            // Map pixel coordinates to virtual desktop 0..65535
+            int dx = (int)Math.Round(((pixelX - virtLeft) * 65535.0) / (virtWidth - 1));
+            int dy = (int)Math.Round(((pixelY - virtTop) * 65535.0) / (virtHeight - 1));
 
-            absX = Math.Clamp(absX, 0, 65535);
-            absY = Math.Clamp(absY, 0, 65535);
+            dx = Math.Clamp(dx, 0, 65535);
+            dy = Math.Clamp(dy, 0, 65535);
 
-            return (absX, absY);
+            return (dx, dy, pixelX, pixelY);
         }
     }
 }

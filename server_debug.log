@@ -1,28 +1,43 @@
-[08:41:43.533] Incoming connection from 127.0.0.1:62552
-[08:41:43.536] Handshake complete for 127.0.0.1:62552
-[08:43:14.687] Incoming connection from 127.0.0.1:61911
-[08:43:14.690] Handshake complete for 127.0.0.1:61911
-[08:43:24.906] Client disconnected: 127.0.0.1:61911
-[08:43:27.014] Incoming connection from 127.0.0.1:61938
-[08:43:27.022] Handshake complete for 127.0.0.1:61938
-[08:43:29.078] Event: DOWN (0.174, 0.278) p=1.00 tool=1
-[08:43:29.101] Event: MOVE (0.199, 0.318) p=1.00 tool=1
-[08:43:29.102] Event: MOVE (0.216, 0.345) p=1.00 tool=1
-[08:43:29.102] Event: MOVE (0.230, 0.368) p=1.00 tool=1
-[08:43:29.111] Event: MOVE (0.249, 0.399) p=1.00 tool=1
-[08:43:29.119] Event: MOVE (0.258, 0.413) p=1.00 tool=1
-[08:43:29.126] Event: MOVE (0.266, 0.426) p=1.00 tool=1
-[08:43:29.133] Event: MOVE (0.275, 0.440) p=1.00 tool=1
-[08:43:29.143] Event: MOVE (0.283, 0.453) p=1.00 tool=1
-[08:43:29.148] Event: MOVE (0.292, 0.467) p=1.00 tool=1
-[08:43:29.155] Event: MOVE (0.300, 0.480) p=1.00 tool=1
-[08:43:29.169] Event: MOVE (0.315, 0.503) p=1.00 tool=1
-[08:43:29.183] Event: MOVE (0.334, 0.534) p=1.00 tool=1
-[08:43:29.197] Event: MOVE (0.351, 0.561) p=1.00 tool=1
-[08:43:29.211] Event: MOVE (0.368, 0.588) p=1.00 tool=1
-[08:43:29.225] Event: MOVE (0.385, 0.615) p=1.00 tool=1
-[08:43:29.239] Event: MOVE (0.402, 0.642) p=1.00 tool=1
-[08:43:29.253] Event: MOVE (0.418, 0.670) p=1.00 tool=1
-[08:43:29.257] Event: UP (0.418, 0.670) p=0.00 tool=1
-[08:43:32.836] Event: DOWN (0.417, 0.500) p=1.00 tool=1
-[08:43:32.872] Event: UP (0.417, 0.500) p=0.00 tool=1
+[08:48:10.275] Incoming connection from 127.0.0.1:57797
+[08:48:10.279] Handshake complete for 127.0.0.1:57797
+[08:48:10.996] Client disconnected: 127.0.0.1:57797
+[08:48:13.118] Incoming connection from 127.0.0.1:57809
+[08:48:13.125] Handshake complete for 127.0.0.1:57809
+[08:48:15.183] Event: DOWN (0.500, 0.500) p=1.00 tool=1
+[08:48:15.185] Injected (960, 540) -> (dx=52439, dy=21858) Action=DOWN
+[08:48:15.203] Event: UP (0.500, 0.500) p=0.00 tool=1
+[08:48:15.204] Injected (960, 540) -> (dx=52439, dy=21858) Action=UP
+[08:48:16.280] Event: DOWN (0.069, 0.222) p=1.00 tool=1
+[08:48:16.280] Injected (133, 240) -> (dx=41145, dy=9715) Action=DOWN
+[08:48:16.293] Event: MOVE (0.088, 0.239) p=1.00 tool=1
+[08:48:16.293] Injected (168, 258) -> (dx=41623, dy=10444) Action=MOVE
+[08:48:16.306] Event: MOVE (0.125, 0.273) p=1.00 tool=1
+[08:48:16.306] Injected (241, 295) -> (dx=42620, dy=11941) Action=MOVE
+[08:48:16.320] Event: MOVE (0.160, 0.305) p=1.00 tool=1
+[08:48:16.320] Injected (306, 329) -> (dx=43508, dy=13317) Action=MOVE
+[08:48:16.334] Event: MOVE (0.194, 0.336) p=1.00 tool=1
+[08:48:16.334] Injected (372, 362) -> (dx=44409, dy=14653) Action=MOVE
+[08:48:16.348] Event: MOVE (0.228, 0.367) p=1.00 tool=1
+[08:48:16.348] Injected (437, 396) -> (dx=45297, dy=16030) Action=MOVE
+[08:48:16.362] Event: MOVE (0.260, 0.397) p=1.00 tool=1
+[08:48:16.362] Injected (499, 428) -> (dx=46144, dy=17325) Action=MOVE
+[08:48:16.378] Event: MOVE (0.295, 0.429) p=1.00 tool=1
+[08:48:16.378] Injected (566, 462) -> (dx=47058, dy=18701) Action=MOVE
+[08:48:16.391] Event: MOVE (0.329, 0.460) p=1.00 tool=1
+[08:48:16.391] Injected (631, 496) -> (dx=47946, dy=20077) Action=MOVE
+[08:48:16.404] Event: MOVE (0.363, 0.490) p=1.00 tool=1
+[08:48:16.405] Injected (696, 529) -> (dx=48834, dy=21413) Action=MOVE
+[08:48:16.418] Event: MOVE (0.397, 0.521) p=1.00 tool=1
+[08:48:16.419] Injected (761, 563) -> (dx=49721, dy=22790) Action=MOVE
+[08:48:16.432] Event: MOVE (0.431, 0.552) p=1.00 tool=1
+[08:48:16.433] Injected (826, 596) -> (dx=50609, dy=24125) Action=MOVE
+[08:48:16.446] Event: MOVE (0.464, 0.583) p=1.00 tool=1
+[08:48:16.447] Injected (891, 629) -> (dx=51497, dy=25461) Action=MOVE
+[08:48:16.462] Event: MOVE (0.498, 0.614) p=1.00 tool=1
+[08:48:16.463] Injected (956, 663) -> (dx=52384, dy=26837) Action=MOVE
+[08:48:16.474] Event: MOVE (0.532, 0.645) p=1.00 tool=1
+[08:48:16.475] Injected (1021, 696) -> (dx=53272, dy=28173) Action=MOVE
+[08:48:16.488] Event: MOVE (0.566, 0.676) p=1.00 tool=1
+[08:48:16.489] Injected (1086, 729) -> (dx=54160, dy=29509) Action=MOVE
+[08:48:16.496] Event: UP (0.566, 0.676) p=0.00 tool=1
+[08:48:16.496] Injected (1086, 729) -> (dx=54160, dy=29509) Action=UP

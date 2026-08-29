@@ -65,7 +65,8 @@ namespace PentabServer
         private void PopulateMonitors()
         {
             MonitorComboBox.Items.Clear();
-            MonitorComboBox.Items.Add("Entire Virtual Desktop");
+            MonitorComboBox.Items.Add("★ Primary Monitor (Default)");
+            MonitorComboBox.Items.Add("Entire Virtual Desktop (All Screens)");
 
             var monitors = _screenMapper.GetMonitors();
             foreach (var m in monitors)
@@ -73,7 +74,8 @@ namespace PentabServer
                 MonitorComboBox.Items.Add(m.ToString());
             }
 
-            MonitorComboBox.SelectedIndex = 0;
+            MonitorComboBox.SelectedIndex = 0; // Default to Primary Monitor
+            _screenMapper.SelectedMonitorIndex = -1;
         }
 
         private void PopulateLocalIps()
@@ -119,11 +121,18 @@ namespace PentabServer
         {
             if (MonitorComboBox.SelectedIndex == 0)
             {
-                _screenMapper.SelectedMonitorIndex = -1; // Virtual Screen
+                _screenMapper.SelectedMonitorIndex = -1; // Primary Monitor
+                AppendLog("Target: Primary Monitor");
             }
-            else
+            else if (MonitorComboBox.SelectedIndex == 1)
             {
-                _screenMapper.SelectedMonitorIndex = MonitorComboBox.SelectedIndex - 1;
+                _screenMapper.SelectedMonitorIndex = -2; // All screens
+                AppendLog("Target: Entire Virtual Desktop");
+            }
+            else if (MonitorComboBox.SelectedIndex >= 2)
+            {
+                _screenMapper.SelectedMonitorIndex = MonitorComboBox.SelectedIndex - 2;
+                AppendLog($"Target: Monitor {_screenMapper.SelectedMonitorIndex}");
             }
         }
 

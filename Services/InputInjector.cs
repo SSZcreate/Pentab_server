@@ -52,75 +52,85 @@ namespace PentabServer.Services
         {
             var (absX, absY) = _screenMapper.MapToAbsoluteCoordinates(data.X, data.Y);
 
-            uint flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-
             // Check button states (e.g. stylus secondary button pressed = Right Click)
-            bool isSecondaryButtonPressed = (data.ButtonState & 32) != 0 || (data.ButtonState & 2) != 0; // BUTTON_STYLUS_PRIMARY / SECONDARY
+            bool isSecondaryButtonPressed = (data.ButtonState & 32) != 0 || (data.ButtonState & 2) != 0;
 
             switch (data.Action.ToUpperInvariant())
             {
                 case ActionType.Down:
+                    // 1. Move to position
+                    SendMouseInput(absX, absY, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
+
+                    // 2. Press down
                     if (isSecondaryButtonPressed)
                     {
-                        flags |= MOUSEEVENTF_RIGHTDOWN;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_RIGHTDOWN);
                         _isRightDown = true;
                     }
                     else
                     {
-                        flags |= MOUSEEVENTF_LEFTDOWN;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_LEFTDOWN);
                         _isLeftDown = true;
                     }
                     break;
 
                 case ActionType.Move:
-                    // Regular move while drawing or dragging
+                    SendMouseInput(absX, absY, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
                     break;
 
                 case ActionType.Up:
                 case ActionType.Cancel:
+                    // 1. Move to final position
+                    SendMouseInput(absX, absY, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
+
+                    // 2. Release button
                     if (_isLeftDown)
                     {
-                        flags |= MOUSEEVENTF_LEFTUP;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_LEFTUP);
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        flags |= MOUSEEVENTF_RIGHTUP;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_RIGHTUP);
                         _isRightDown = false;
                     }
                     break;
 
                 case ActionType.HoverMove:
                 case ActionType.HoverEnter:
+                    SendMouseInput(absX, absY, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
+                    break;
+
                 case ActionType.HoverExit:
-                    // If pen was down and suddenly switches to hover, release buttons
                     if (_isLeftDown)
                     {
-                        flags |= MOUSEEVENTF_LEFTUP;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_LEFTUP);
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        flags |= MOUSEEVENTF_RIGHTUP;
+                        SendMouseInput(absX, absY, MOUSEEVENTF_RIGHTUP);
                         _isRightDown = false;
                     }
                     break;
             }
+        }
 
+        private void SendMouseInput(int dx, int dy, uint flags)
+        {
             var input = new INPUT
             {
                 type = INPUT_MOUSE,
                 mi = new MOUSEINPUT
                 {
-                    dx = absX,
-                    dy = absY,
+                    dx = dx,
+                    dy = dy,
                     mouseData = 0,
                     dwFlags = flags,
                     time = 0,
                     dwExtraInfo = IntPtr.Zero
                 }
             };
-
             SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
         }
 
@@ -132,20 +142,7 @@ namespace PentabServer.Services
                 if (_isLeftDown) flags |= MOUSEEVENTF_LEFTUP;
                 if (_isRightDown) flags |= MOUSEEVENTF_RIGHTUP;
 
-                var input = new INPUT
-                {
-                    type = INPUT_MOUSE,
-                    mi = new MOUSEINPUT
-                    {
-                        dx = 0,
-                        dy = 0,
-                        mouseData = 0,
-                        dwFlags = flags,
-                        time = 0,
-                        dwExtraInfo = IntPtr.Zero
-                    }
-                };
-                SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+                SendMouseInput(0, 0, flags);
                 _isLeftDown = false;
                 _isRightDown = false;
             }

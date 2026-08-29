@@ -17,6 +17,7 @@ namespace PentabServer.Services
         private TcpListener? _tcpListener;
         private CancellationTokenSource? _cts;
         private readonly InputInjector _inputInjector;
+        private CancellationTokenSource? _activeClientCts;
 
         public event Action<bool>? ServerStateChanged;
         public event Action<string>? ClientConnected;
@@ -42,9 +43,10 @@ namespace PentabServer.Services
             try
             {
                 _tcpListener = new TcpListener(IPAddress.Any, port);
-                _tcpListener.Start();
+                _tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                _tcpListener.Start(100);
 
-                LogMessage?.Invoke($"WebSocket TCP server listening on port {port}");
+                LogMessage?.Invoke($"WebSocket TCP server listening on 0.0.0.0:{port}");
                 ServerStateChanged?.Invoke(true);
 
                 Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
@@ -60,6 +62,7 @@ namespace PentabServer.Services
         public void Stop()
         {
             _cts?.Cancel();
+            _activeClientCts?.Cancel();
             try
             {
                 _tcpListener?.Stop();
@@ -79,7 +82,8 @@ namespace PentabServer.Services
                 try
                 {
                     var tcpClient = await _tcpListener.AcceptTcpClientAsync(ct);
-                    _ = ProcessTcpClientAsync(tcpClient, ct);
+                    // Process client in a completely independent thread
+                    _ = Task.Run(() => ProcessTcpClientAsync(tcpClient, ct), ct);
                 }
                 catch (OperationCanceledException)
                 {
@@ -91,15 +95,33 @@ namespace PentabServer.Services
                     {
                         LogMessage?.Invoke($"Accept error: {ex.Message}");
                     }
+                    await Task.Delay(100, ct);
                 }
             }
         }
 
-        private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken ct)
+        private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken serverCt)
         {
-            tcpClient.NoDelay = true; // Disable Nagle's algorithm for lowest latency
-            var endPoint = tcpClient.Client.RemoteEndPoint?.ToString() ?? "Unknown";
-            LogMessage?.Invoke($"TCP connection from: {endPoint}");
+            tcpClient.NoDelay = true;
+            tcpClient.ReceiveTimeout = 0;
+            tcpClient.SendTimeout = 5000;
+
+            string endPoint = "Unknown";
+            try
+            {
+                endPoint = tcpClient.Client.RemoteEndPoint?.ToString() ?? "Unknown";
+            }
+            catch { }
+
+            LogMessage?.Invoke($"Incoming TCP connection from: {endPoint}");
+            File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
+
+            // Cancel any older active client to cleanly switch to the new connection
+            var clientCts = CancellationTokenSource.CreateLinkedTokenSource(serverCt);
+            var prevCts = Interlocked.Exchange(ref _activeClientCts, clientCts);
+            prevCts?.Cancel();
+
+            var ct = clientCts.Token;
 
             using (tcpClient)
             {
@@ -107,8 +129,6 @@ namespace PentabServer.Services
 
                 try
                 {
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Starting handshake for {endPoint}\n");
-
                     // 1. Read HTTP handshake byte-by-byte up to \r\n\r\n
                     using var ms = new MemoryStream();
                     var singleByte = new byte[1];
@@ -118,7 +138,11 @@ namespace PentabServer.Services
                     while (!ct.IsCancellationRequested)
                     {
                         int read = await stream.ReadAsync(singleByte, 0, 1, ct);
-                        if (read <= 0) return;
+                        if (read <= 0)
+                        {
+                            File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Stream EOF during handshake from {endPoint}\n");
+                            return;
+                        }
                         ms.Write(singleByte, 0, 1);
 
                         if (singleByte[0] == matchPattern[matchIndex])
@@ -170,14 +194,13 @@ namespace PentabServer.Services
                     await stream.WriteAsync(responseBytes, 0, responseBytes.Length, ct);
                     await stream.FlushAsync(ct);
 
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete, entering RFC 6455 frame loop for {endPoint}\n");
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete for {endPoint}\n");
                     LogMessage?.Invoke($"WebSocket connected: {endPoint}");
                     ClientConnected?.Invoke(endPoint);
 
-                    // 2. Ultra-reliable & High-performance RFC 6455 WebSocket Frame Loop
+                    // 2. RFC 6455 WebSocket Frame Loop
                     while (!ct.IsCancellationRequested)
                     {
-                        // Read 2-byte frame header
                         var header = new byte[2];
                         if (!await ReadExactAsync(stream, header, 0, 2, ct)) break;
 
@@ -209,7 +232,7 @@ namespace PentabServer.Services
                             if (!await ReadExactAsync(stream, mask, 0, 4, ct)) break;
                         }
 
-                        if (payloadLen > 1024 * 1024) break; // Reject unreasonably large payloads
+                        if (payloadLen > 1024 * 1024) break;
 
                         var payload = new byte[payloadLen];
                         if (payloadLen > 0)
@@ -224,15 +247,13 @@ namespace PentabServer.Services
                             }
                         }
 
-                        // Opcode 0x8: Close
-                        if (opcode == 0x8)
+                        if (opcode == 0x8) // Close
                         {
                             var closeResp = new byte[] { 0x88, 0x00 };
                             await stream.WriteAsync(closeResp, 0, closeResp.Length, ct);
                             break;
                         }
-                        // Opcode 0x9: Ping -> Respond with Pong (0xA)
-                        else if (opcode == 0x9)
+                        else if (opcode == 0x9) // Ping
                         {
                             var pongHeader = new byte[] { (byte)0x8A, (byte)payload.Length };
                             await stream.WriteAsync(pongHeader, 0, pongHeader.Length, ct);
@@ -242,8 +263,7 @@ namespace PentabServer.Services
                             }
                             await stream.FlushAsync(ct);
                         }
-                        // Opcode 0x1: Text JSON payload
-                        else if (opcode == 0x1)
+                        else if (opcode == 0x1) // Text
                         {
                             var json = Encoding.UTF8.GetString(payload);
                             try
@@ -251,7 +271,7 @@ namespace PentabServer.Services
                                 var penData = JsonSerializer.Deserialize<PenData>(json);
                                 if (penData != null)
                                 {
-                                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2}\n");
+                                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2} tool={penData.ToolType}\n");
                                     _inputInjector.Inject(penData);
                                     PenDataReceived?.Invoke(penData);
                                 }
@@ -262,7 +282,7 @@ namespace PentabServer.Services
                 }
                 catch (Exception ex)
                 {
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] EXCEPTION: {ex.Message}\n");
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Exception: {ex.Message} for {endPoint}\n");
                     if (!ct.IsCancellationRequested)
                     {
                         LogMessage?.Invoke($"Connection error: {ex.Message}");
@@ -270,7 +290,13 @@ namespace PentabServer.Services
                 }
                 finally
                 {
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Connection closed: {endPoint}\n");
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Client disconnected: {endPoint}\n");
+                    try
+                    {
+                        stream?.Close();
+                        tcpClient?.Close();
+                    }
+                    catch { }
                     _inputInjector.ResetButtons();
                     ClientDisconnected?.Invoke();
                     LogMessage?.Invoke($"Client disconnected: {endPoint}");

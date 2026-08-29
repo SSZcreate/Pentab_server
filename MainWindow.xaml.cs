@@ -139,6 +139,18 @@ namespace PentabServer
             }
         }
 
+        private void TestCursorButton_Click(object sender, RoutedEventArgs e)
+        {
+            var primary = System.Windows.Forms.Screen.PrimaryScreen;
+            if (primary != null)
+            {
+                int cx = primary.Bounds.X + (primary.Bounds.Width / 2);
+                int cy = primary.Bounds.Y + (primary.Bounds.Height / 2);
+                _inputInjector.MoveToPixel(cx, cy);
+                AppendLog($"Test: Moved cursor to center ({cx}, {cy})");
+            }
+        }
+
         private void CopyAdbButton_Click(object sender, RoutedEventArgs e)
         {
             Clipboard.SetText("adb reverse tcp:8765 tcp:8765");

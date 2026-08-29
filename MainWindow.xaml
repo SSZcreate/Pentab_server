@@ -101,7 +101,10 @@
                     <ComboBox x:Name="MonitorComboBox" Margin="0,0,0,16" SelectionChanged="MonitorComboBox_SelectionChanged"/>
 
                     <!-- Server Start/Stop Button -->
-                    <Button x:Name="ToggleServerButton" Content="Start Server" Style="{StaticResource ModernButton}" Height="38" Click="ToggleServerButton_Click" Margin="0,0,0,16"/>
+                    <Button x:Name="ToggleServerButton" Content="Start Server" Style="{StaticResource ModernButton}" Height="38" Click="ToggleServerButton_Click" Margin="0,0,0,8"/>
+
+                    <!-- Test Cursor Move Button -->
+                    <Button x:Name="TestCursorButton" Content="Test Move to Center" Style="{StaticResource ModernButton}" Background="#2E7D32" Height="32" Click="TestCursorButton_Click" Margin="0,0,0,16"/>
 
                     <Separator Background="#2C2C32" Margin="0,0,0,12"/>
 

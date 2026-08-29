@@ -20,6 +20,13 @@ namespace PentabServer.Services
         private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct MOUSEINPUT
         {
             public int dx;
@@ -48,6 +55,9 @@ namespace PentabServer.Services
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetCursorPos(int X, int Y);
 
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
         private readonly ScreenMapper _screenMapper;
         private bool _isLeftDown = false;
         private bool _isRightDown = false;
@@ -57,24 +67,38 @@ namespace PentabServer.Services
             _screenMapper = screenMapper;
         }
 
+        public void MoveToPixel(int targetX, int targetY)
+        {
+            // 1. Direct SetCursorPos
+            SetCursorPos(targetX, targetY);
+
+            // 2. WinForms Cursor.Position
+            try
+            {
+                Cursor.Position = new Point(targetX, targetY);
+            }
+            catch { }
+
+            // 3. Hardware-like relative move delta
+            if (GetCursorPos(out POINT cur))
+            {
+                int deltaX = targetX - cur.X;
+                int deltaY = targetY - cur.Y;
+                if (deltaX != 0 || deltaY != 0)
+                {
+                    mouse_event(MOUSEEVENTF_MOVE, deltaX, deltaY, 0, UIntPtr.Zero);
+                }
+            }
+        }
+
         public void Inject(PenData data)
         {
             var (dx, dy, pixelX, pixelY) = _screenMapper.MapToVirtualDesktop(data.X, data.Y);
 
-            // 1. Move cursor via WinForms Cursor.Position
-            try
-            {
-                Cursor.Position = new Point(pixelX, pixelY);
-            }
-            catch { }
+            // Move cursor to target pixel on Primary Screen
+            MoveToPixel(pixelX, pixelY);
 
-            // 2. Move cursor via SetCursorPos
-            SetCursorPos(pixelX, pixelY);
-
-            // 3. Move cursor via mouse_event with absolute virtual desk
-            mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, dx, dy, 0, UIntPtr.Zero);
-
-            // 4. SendInput
+            // 4. Absolute Virtual Desktop SendInput
             uint flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
             bool isSecondaryButtonPressed = (data.ButtonState & 32) != 0 || (data.ButtonState & 2) != 0;
 
@@ -83,13 +107,13 @@ namespace PentabServer.Services
                 case ActionType.Down:
                     if (isSecondaryButtonPressed)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTDOWN, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_RIGHTDOWN;
                         _isRightDown = true;
                     }
                     else
                     {
-                        mouse_event(MOUSEEVENTF_LEFTDOWN, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_LEFTDOWN;
                         _isLeftDown = true;
                     }
@@ -102,13 +126,13 @@ namespace PentabServer.Services
                 case ActionType.Cancel:
                     if (_isLeftDown)
                     {
-                        mouse_event(MOUSEEVENTF_LEFTUP, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_LEFTUP;
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTUP, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_RIGHTUP;
                         _isRightDown = false;
                     }
@@ -117,13 +141,13 @@ namespace PentabServer.Services
                 case ActionType.HoverExit:
                     if (_isLeftDown)
                     {
-                        mouse_event(MOUSEEVENTF_LEFTUP, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_LEFTUP;
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTUP, dx, dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, UIntPtr.Zero);
                         flags |= MOUSEEVENTF_RIGHTUP;
                         _isRightDown = false;
                     }

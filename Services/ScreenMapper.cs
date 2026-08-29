@@ -51,15 +51,15 @@ namespace PentabServer.Services
             var virtScreen = SystemInformation.VirtualScreen;
             int virtLeft = virtScreen.X;
             int virtTop = virtScreen.Y;
-            int virtWidth = virtScreen.Width;
-            int virtHeight = virtScreen.Height;
+            int virtWidth = Math.Max(virtScreen.Width, 1);
+            int virtHeight = Math.Max(virtScreen.Height, 1);
 
             double targetLeft;
             double targetTop;
             double targetWidth;
             double targetHeight;
 
-            var monitors = GetMonitors();
+            var screens = Screen.AllScreens;
 
             if (SelectedMonitorIndex == -2) // Entire Virtual Desktop
             {
@@ -68,26 +68,41 @@ namespace PentabServer.Services
                 targetWidth = virtWidth;
                 targetHeight = virtHeight;
             }
-            else if (SelectedMonitorIndex >= 0 && SelectedMonitorIndex < monitors.Count)
+            else if (SelectedMonitorIndex >= 0 && SelectedMonitorIndex < screens.Length)
             {
-                var m = monitors[SelectedMonitorIndex];
-                targetLeft = m.Left;
-                targetTop = m.Top;
-                targetWidth = m.Width;
-                targetHeight = m.Height;
+                var s = screens[SelectedMonitorIndex];
+                targetLeft = s.Bounds.X;
+                targetTop = s.Bounds.Y;
+                targetWidth = s.Bounds.Width;
+                targetHeight = s.Bounds.Height;
             }
             else
             {
-                // Default: Primary Monitor (Primary == true or Left==0, Top==0)
-                var primary = monitors.Find(m => m.IsPrimary) ?? monitors.Find(m => m.Left == 0 && m.Top == 0) ?? monitors[0];
-                targetLeft = primary.Left;
-                targetTop = primary.Top;
-                targetWidth = primary.Width;
-                targetHeight = primary.Height;
+                // Default: Primary Monitor (Always use Screen.PrimaryScreen)
+                var primary = Screen.PrimaryScreen ?? (screens.Length > 0 ? screens[0] : null);
+                if (primary != null)
+                {
+                    targetLeft = primary.Bounds.X;
+                    targetTop = primary.Bounds.Y;
+                    targetWidth = primary.Bounds.Width;
+                    targetHeight = primary.Bounds.Height;
+                }
+                else
+                {
+                    targetLeft = 0;
+                    targetTop = 0;
+                    targetWidth = 1280;
+                    targetHeight = 720;
+                }
             }
 
+            // Calculate exact target pixel on the selected screen
             int pixelX = (int)Math.Round(targetLeft + (normX * (targetWidth - 1)));
             int pixelY = (int)Math.Round(targetTop + (normY * (targetHeight - 1)));
+
+            // Clamp pixel to target screen boundary
+            pixelX = Math.Clamp(pixelX, (int)targetLeft, (int)(targetLeft + targetWidth - 1));
+            pixelY = Math.Clamp(pixelY, (int)targetTop, (int)(targetTop + targetHeight - 1));
 
             // Map pixel coordinates to virtual desktop 0..65535 for SendInput
             int dx = (int)Math.Round(((pixelX - virtLeft) * 65535.0) / (virtWidth - 1));

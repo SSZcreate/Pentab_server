@@ -1,6 +1,8 @@
 using System;
+using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 using PentabServer.Models;
 
 namespace PentabServer.Services
@@ -17,10 +19,33 @@ namespace PentabServer.Services
         private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
         private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, UIntPtr dwExtraInfo);
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
 
-        [DllImport("user32.dll")]
+        [StructLayout(LayoutKind.Explicit)]
+        public struct INPUT
+        {
+            [FieldOffset(0)]
+            public uint type;
+            [FieldOffset(8)]
+            public MOUSEINPUT mi;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, UIntPtr dwExtraInfo);
+
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetCursorPos(int X, int Y);
 
         private readonly ScreenMapper _screenMapper;
@@ -36,12 +61,21 @@ namespace PentabServer.Services
         {
             var (dx, dy, pixelX, pixelY) = _screenMapper.MapToVirtualDesktop(data.X, data.Y);
 
-            // 1. Move cursor via SetCursorPos
+            // 1. Move cursor via WinForms Cursor.Position
+            try
+            {
+                Cursor.Position = new Point(pixelX, pixelY);
+            }
+            catch { }
+
+            // 2. Move cursor via SetCursorPos
             SetCursorPos(pixelX, pixelY);
 
-            // 2. Also move cursor via mouse_event with absolute virtual desktop coordinates
-            mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+            // 3. Move cursor via mouse_event with absolute virtual desk
+            mouse_event(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, dx, dy, 0, UIntPtr.Zero);
 
+            // 4. SendInput
+            uint flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
             bool isSecondaryButtonPressed = (data.ButtonState & 32) != 0 || (data.ButtonState & 2) != 0;
 
             switch (data.Action.ToUpperInvariant())
@@ -49,12 +83,14 @@ namespace PentabServer.Services
                 case ActionType.Down:
                     if (isSecondaryButtonPressed)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTDOWN, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTDOWN, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_RIGHTDOWN;
                         _isRightDown = true;
                     }
                     else
                     {
-                        mouse_event(MOUSEEVENTF_LEFTDOWN, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTDOWN, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_LEFTDOWN;
                         _isLeftDown = true;
                     }
                     break;
@@ -66,12 +102,14 @@ namespace PentabServer.Services
                 case ActionType.Cancel:
                     if (_isLeftDown)
                     {
-                        mouse_event(MOUSEEVENTF_LEFTUP, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTUP, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_LEFTUP;
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTUP, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTUP, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_RIGHTUP;
                         _isRightDown = false;
                     }
                     break;
@@ -79,18 +117,39 @@ namespace PentabServer.Services
                 case ActionType.HoverExit:
                     if (_isLeftDown)
                     {
-                        mouse_event(MOUSEEVENTF_LEFTUP, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_LEFTUP, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_LEFTUP;
                         _isLeftDown = false;
                     }
                     if (_isRightDown)
                     {
-                        mouse_event(MOUSEEVENTF_RIGHTUP, (uint)dx, (uint)dy, 0, UIntPtr.Zero);
+                        mouse_event(MOUSEEVENTF_RIGHTUP, dx, dy, 0, UIntPtr.Zero);
+                        flags |= MOUSEEVENTF_RIGHTUP;
                         _isRightDown = false;
                     }
                     break;
             }
 
-            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected ({pixelX}, {pixelY}) -> (dx={dx}, dy={dy}) Action={data.Action}\n");
+            var input = new INPUT
+            {
+                type = INPUT_MOUSE,
+                mi = new MOUSEINPUT
+                {
+                    dx = dx,
+                    dy = dy,
+                    mouseData = 0,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = UIntPtr.Zero
+                }
+            };
+
+            SendInput(1, new[] { input }, Marshal.SizeOf(typeof(INPUT)));
+
+            File.AppendAllText(
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"),
+                $"[{DateTime.Now:HH:mm:ss.fff}] Injected ({pixelX}, {pixelY}) -> (dx={dx}, dy={dy}) Action={data.Action}\n"
+            );
         }
 
         public void ResetButtons()

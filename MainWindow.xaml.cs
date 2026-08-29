@@ -6,6 +6,9 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using PentabServer.Models;
 using PentabServer.Services;
+using MessageBox = System.Windows.MessageBox;
+using Clipboard = System.Windows.Clipboard;
+using Color = System.Windows.Media.Color;
 
 namespace PentabServer
 {

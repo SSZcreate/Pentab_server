@@ -108,7 +108,7 @@
                     <!-- USB Connection Guide -->
                     <TextBlock Text="Quick Connect (USB ADB):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                     <Border Background="#141416" CornerRadius="6" Padding="8,6" Margin="0,0,0,8">
-                        <TextBlock Text="adb forward tcp:8765 tcp:8765" FontFamily="Consolas, monospace" FontSize="11" Foreground="#4A90E2" TextWrapping="Wrap"/>
+                        <TextBlock Text="adb reverse tcp:8765 tcp:8765" FontFamily="Consolas, monospace" FontSize="11" Foreground="#4A90E2" TextWrapping="Wrap"/>
                     </Border>
                     <Button Content="Copy ADB Command" Style="{StaticResource ModernButton}" Background="#2C2C32" Height="30" FontSize="12" Click="CopyAdbButton_Click" Margin="0,0,0,12"/>
 

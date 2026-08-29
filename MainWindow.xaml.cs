@@ -40,16 +40,10 @@ namespace PentabServer
             _rateTimer.Tick += RateTimer_Tick;
             _rateTimer.Start();
 
-            Loaded += MainWindow_Loaded;
-            Closing += MainWindow_Closing;
-        }
-
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
-        {
             PopulateMonitors();
             PopulateLocalIps();
 
-            // Auto start server on launch
+            // Auto start server immediately on creation
             try
             {
                 _server.Start(8765);
@@ -58,6 +52,8 @@ namespace PentabServer
             {
                 AppendLog($"Auto-start failed: {ex.Message}");
             }
+
+            Closing += MainWindow_Closing;
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -133,8 +129,8 @@ namespace PentabServer
 
         private void CopyAdbButton_Click(object sender, RoutedEventArgs e)
         {
-            Clipboard.SetText("adb forward tcp:8765 tcp:8765");
-            AppendLog("Copied ADB forward command to clipboard.");
+            Clipboard.SetText("adb reverse tcp:8765 tcp:8765");
+            AppendLog("Copied ADB reverse command to clipboard.");
         }
 
         private void RateTimer_Tick(object? sender, EventArgs e)

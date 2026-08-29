@@ -3,7 +3,7 @@ using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -14,7 +14,7 @@ namespace PentabServer.Services
 {
     public class WebSocketServer
     {
-        private HttpListener? _httpListener;
+        private TcpListener? _tcpListener;
         private CancellationTokenSource? _cts;
         private readonly InputInjector _inputInjector;
 
@@ -24,7 +24,7 @@ namespace PentabServer.Services
         public event Action<PenData>? PenDataReceived;
         public event Action<string>? LogMessage;
 
-        public bool IsRunning => _httpListener?.IsListening ?? false;
+        public bool IsRunning => _tcpListener != null;
         public int Port { get; private set; } = 8765;
 
         public WebSocketServer(InputInjector inputInjector)
@@ -41,40 +41,10 @@ namespace PentabServer.Services
 
             try
             {
-                _httpListener = new HttpListener();
-                
-                // Try registering wildcard prefix, fallback to specific IPs if restricted
-                bool prefixAdded = false;
-                try
-                {
-                    _httpListener.Prefixes.Add($"http://*:{port}/pentab/");
-                    _httpListener.Start();
-                    prefixAdded = true;
-                }
-                catch
-                {
-                    _httpListener.Close();
-                    _httpListener = new HttpListener();
-                }
+                _tcpListener = new TcpListener(IPAddress.Any, port);
+                _tcpListener.Start();
 
-                if (!prefixAdded)
-                {
-                    _httpListener.Prefixes.Add($"http://localhost:{port}/pentab/");
-                    _httpListener.Prefixes.Add($"http://127.0.0.1:{port}/pentab/");
-
-                    // Add local IP addresses
-                    foreach (var ip in GetLocalIPAddresses())
-                    {
-                        try
-                        {
-                            _httpListener.Prefixes.Add($"http://{ip}:{port}/pentab/");
-                        }
-                        catch { }
-                    }
-                    _httpListener.Start();
-                }
-
-                LogMessage?.Invoke($"WebSocket server started on port {port}");
+                LogMessage?.Invoke($"WebSocket TCP server listening on port {port}");
                 ServerStateChanged?.Invoke(true);
 
                 Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
@@ -92,12 +62,11 @@ namespace PentabServer.Services
             _cts?.Cancel();
             try
             {
-                _httpListener?.Stop();
-                _httpListener?.Close();
+                _tcpListener?.Stop();
             }
             catch { }
 
-            _httpListener = null;
+            _tcpListener = null;
             _inputInjector.ResetButtons();
             ServerStateChanged?.Invoke(false);
             LogMessage?.Invoke("WebSocket server stopped");
@@ -105,97 +74,220 @@ namespace PentabServer.Services
 
         private async Task AcceptLoopAsync(CancellationToken ct)
         {
-            while (!ct.IsCancellationRequested && _httpListener != null && _httpListener.IsListening)
+            while (!ct.IsCancellationRequested && _tcpListener != null)
             {
                 try
                 {
-                    var context = await _httpListener.GetContextAsync();
-                    if (context.Request.IsWebSocketRequest)
-                    {
-                        _ = ProcessWebSocketClientAsync(context, ct);
-                    }
-                    else
-                    {
-                        context.Response.StatusCode = 400;
-                        context.Response.Close();
-                    }
+                    var tcpClient = await _tcpListener.AcceptTcpClientAsync(ct);
+                    _ = ProcessTcpClientAsync(tcpClient, ct);
                 }
-                catch (HttpListenerException)
+                catch (OperationCanceledException)
                 {
                     break;
                 }
                 catch (Exception ex)
                 {
-                    LogMessage?.Invoke($"Accept error: {ex.Message}");
+                    if (!ct.IsCancellationRequested)
+                    {
+                        LogMessage?.Invoke($"Accept error: {ex.Message}");
+                    }
                 }
             }
         }
 
-        private async Task ProcessWebSocketClientAsync(HttpListenerContext context, CancellationToken ct)
+        private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken ct)
         {
-            HttpListenerWebSocketContext wsContext;
-            try
-            {
-                wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
-            }
-            catch (Exception ex)
-            {
-                LogMessage?.Invoke($"WebSocket handshake error: {ex.Message}");
-                return;
-            }
+            tcpClient.NoDelay = true; // Disable Nagle's algorithm for lowest latency
+            var endPoint = tcpClient.Client.RemoteEndPoint?.ToString() ?? "Unknown";
+            LogMessage?.Invoke($"TCP connection from: {endPoint}");
 
-            var clientIp = context.Request.RemoteEndPoint?.ToString() ?? "Unknown";
-            LogMessage?.Invoke($"Client connected from: {clientIp}");
-            ClientConnected?.Invoke(clientIp);
-
-            var socket = wsContext.WebSocket;
-            var buffer = new byte[4096];
-
-            try
+            using (tcpClient)
             {
-                while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
-                {
-                    var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
-                        break;
-                    }
+                var stream = tcpClient.GetStream();
 
-                    if (result.MessageType == WebSocketMessageType.Text && result.Count > 0)
-                    {
-                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        try
-                        {
-                            var penData = JsonSerializer.Deserialize<PenData>(json);
-                            if (penData != null)
-                            {
-                                _inputInjector.Inject(penData);
-                                PenDataReceived?.Invoke(penData);
-                            }
-                        }
-                        catch (JsonException)
-                        {
-                            // Skip invalid packets
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogMessage?.Invoke($"Client connection error: {ex.Message}");
-            }
-            finally
-            {
-                _inputInjector.ResetButtons();
-                ClientDisconnected?.Invoke();
-                LogMessage?.Invoke($"Client disconnected: {clientIp}");
                 try
                 {
-                    socket.Dispose();
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Starting handshake for {endPoint}\n");
+
+                    // 1. Read HTTP handshake byte-by-byte up to \r\n\r\n
+                    using var ms = new MemoryStream();
+                    var singleByte = new byte[1];
+                    int matchIndex = 0;
+                    var matchPattern = new byte[] { (byte)'\r', (byte)'\n', (byte)'\r', (byte)'\n' };
+
+                    while (!ct.IsCancellationRequested)
+                    {
+                        int read = await stream.ReadAsync(singleByte, 0, 1, ct);
+                        if (read <= 0) return;
+                        ms.Write(singleByte, 0, 1);
+
+                        if (singleByte[0] == matchPattern[matchIndex])
+                        {
+                            matchIndex++;
+                            if (matchIndex == 4) break;
+                        }
+                        else
+                        {
+                            matchIndex = (singleByte[0] == matchPattern[0]) ? 1 : 0;
+                        }
+
+                        if (ms.Length > 8192) return;
+                    }
+
+                    string request = Encoding.UTF8.GetString(ms.ToArray());
+                    string? clientKey = null;
+
+                    using (var reader = new StringReader(request))
+                    {
+                        string? line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            if (line.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase))
+                            {
+                                clientKey = line.Substring("Sec-WebSocket-Key:".Length).Trim();
+                                break;
+                            }
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(clientKey))
+                    {
+                        var badResponse = Encoding.UTF8.GetBytes("HTTP/1.1 400 Bad Request\r\n\r\n");
+                        await stream.WriteAsync(badResponse, ct);
+                        return;
+                    }
+
+                    var acceptKey = Convert.ToBase64String(
+                        SHA1.HashData(Encoding.UTF8.GetBytes(clientKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+                    );
+
+                    var responseHeader = "HTTP/1.1 101 Switching Protocols\r\n" +
+                                         "Upgrade: websocket\r\n" +
+                                         "Connection: Upgrade\r\n" +
+                                         $"Sec-WebSocket-Accept: {acceptKey}\r\n\r\n";
+
+                    var responseBytes = Encoding.UTF8.GetBytes(responseHeader);
+                    await stream.WriteAsync(responseBytes, 0, responseBytes.Length, ct);
+                    await stream.FlushAsync(ct);
+
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete, entering RFC 6455 frame loop for {endPoint}\n");
+                    LogMessage?.Invoke($"WebSocket connected: {endPoint}");
+                    ClientConnected?.Invoke(endPoint);
+
+                    // 2. Ultra-reliable & High-performance RFC 6455 WebSocket Frame Loop
+                    while (!ct.IsCancellationRequested)
+                    {
+                        // Read 2-byte frame header
+                        var header = new byte[2];
+                        if (!await ReadExactAsync(stream, header, 0, 2, ct)) break;
+
+                        byte b0 = header[0];
+                        byte b1 = header[1];
+
+                        int opcode = b0 & 0x0F;
+                        bool isMasked = (b1 & 0x80) != 0;
+                        long payloadLen = b1 & 0x7F;
+
+                        if (payloadLen == 126)
+                        {
+                            var ext = new byte[2];
+                            if (!await ReadExactAsync(stream, ext, 0, 2, ct)) break;
+                            payloadLen = (ext[0] << 8) | ext[1];
+                        }
+                        else if (payloadLen == 127)
+                        {
+                            var ext = new byte[8];
+                            if (!await ReadExactAsync(stream, ext, 0, 8, ct)) break;
+                            payloadLen = 0;
+                            for (int i = 0; i < 8; i++) payloadLen = (payloadLen << 8) | ext[i];
+                        }
+
+                        byte[]? mask = null;
+                        if (isMasked)
+                        {
+                            mask = new byte[4];
+                            if (!await ReadExactAsync(stream, mask, 0, 4, ct)) break;
+                        }
+
+                        if (payloadLen > 1024 * 1024) break; // Reject unreasonably large payloads
+
+                        var payload = new byte[payloadLen];
+                        if (payloadLen > 0)
+                        {
+                            if (!await ReadExactAsync(stream, payload, 0, (int)payloadLen, ct)) break;
+                            if (isMasked && mask != null)
+                            {
+                                for (int i = 0; i < payload.Length; i++)
+                                {
+                                    payload[i] = (byte)(payload[i] ^ mask[i % 4]);
+                                }
+                            }
+                        }
+
+                        // Opcode 0x8: Close
+                        if (opcode == 0x8)
+                        {
+                            var closeResp = new byte[] { 0x88, 0x00 };
+                            await stream.WriteAsync(closeResp, 0, closeResp.Length, ct);
+                            break;
+                        }
+                        // Opcode 0x9: Ping -> Respond with Pong (0xA)
+                        else if (opcode == 0x9)
+                        {
+                            var pongHeader = new byte[] { (byte)0x8A, (byte)payload.Length };
+                            await stream.WriteAsync(pongHeader, 0, pongHeader.Length, ct);
+                            if (payload.Length > 0)
+                            {
+                                await stream.WriteAsync(payload, 0, payload.Length, ct);
+                            }
+                            await stream.FlushAsync(ct);
+                        }
+                        // Opcode 0x1: Text JSON payload
+                        else if (opcode == 0x1)
+                        {
+                            var json = Encoding.UTF8.GetString(payload);
+                            try
+                            {
+                                var penData = JsonSerializer.Deserialize<PenData>(json);
+                                if (penData != null)
+                                {
+                                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2}\n");
+                                    _inputInjector.Inject(penData);
+                                    PenDataReceived?.Invoke(penData);
+                                }
+                            }
+                            catch (JsonException) { }
+                        }
+                    }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] EXCEPTION: {ex.Message}\n");
+                    if (!ct.IsCancellationRequested)
+                    {
+                        LogMessage?.Invoke($"Connection error: {ex.Message}");
+                    }
+                }
+                finally
+                {
+                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Connection closed: {endPoint}\n");
+                    _inputInjector.ResetButtons();
+                    ClientDisconnected?.Invoke();
+                    LogMessage?.Invoke($"Client disconnected: {endPoint}");
+                }
             }
+        }
+
+        private static async Task<bool> ReadExactAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken ct)
+        {
+            int totalRead = 0;
+            while (totalRead < count)
+            {
+                int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, ct);
+                if (read <= 0) return false;
+                totalRead += read;
+            }
+            return true;
         }
 
         public static string[] GetLocalIPAddresses()

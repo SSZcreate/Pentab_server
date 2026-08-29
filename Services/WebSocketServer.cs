@@ -18,6 +18,7 @@ namespace PentabServer.Services
         private CancellationTokenSource? _cts;
         private readonly InputInjector _inputInjector;
         private CancellationTokenSource? _activeClientCts;
+        private TcpClient? _currentTcpClient;
 
         public event Action<bool>? ServerStateChanged;
         public event Action<string>? ClientConnected;
@@ -103,7 +104,7 @@ namespace PentabServer.Services
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken serverCt)
         {
             tcpClient.NoDelay = true;
-            tcpClient.ReceiveTimeout = 0;
+            tcpClient.ReceiveTimeout = 10000; // 10s receive timeout to detect dead connections
             tcpClient.SendTimeout = 5000;
 
             string endPoint = "Unknown";
@@ -114,12 +115,15 @@ namespace PentabServer.Services
             catch { }
 
             LogMessage?.Invoke($"Incoming TCP connection from: {endPoint}");
-            File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
+            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
 
-            // Cancel any older active client to cleanly switch to the new connection
+            // Cancel and close any older active client immediately
             var clientCts = CancellationTokenSource.CreateLinkedTokenSource(serverCt);
             var prevCts = Interlocked.Exchange(ref _activeClientCts, clientCts);
             prevCts?.Cancel();
+
+            var prevClient = Interlocked.Exchange(ref _currentTcpClient, tcpClient);
+            try { prevClient?.Close(); } catch { }
 
             var ct = clientCts.Token;
 
@@ -140,7 +144,7 @@ namespace PentabServer.Services
                         int read = await stream.ReadAsync(singleByte, 0, 1, ct);
                         if (read <= 0)
                         {
-                            File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Stream EOF during handshake from {endPoint}\n");
+                            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Stream EOF during handshake from {endPoint}\n");
                             return;
                         }
                         ms.Write(singleByte, 0, 1);
@@ -194,7 +198,7 @@ namespace PentabServer.Services
                     await stream.WriteAsync(responseBytes, 0, responseBytes.Length, ct);
                     await stream.FlushAsync(ct);
 
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete for {endPoint}\n");
+                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete for {endPoint}\n");
                     LogMessage?.Invoke($"WebSocket connected: {endPoint}");
                     ClientConnected?.Invoke(endPoint);
 
@@ -271,7 +275,7 @@ namespace PentabServer.Services
                                 var penData = JsonSerializer.Deserialize<PenData>(json);
                                 if (penData != null)
                                 {
-                                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2} tool={penData.ToolType}\n");
+                                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2} tool={penData.ToolType}\n");
                                     _inputInjector.Inject(penData);
                                     PenDataReceived?.Invoke(penData);
                                 }

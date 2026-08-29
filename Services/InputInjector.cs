@@ -90,7 +90,7 @@ namespace PentabServer.Services
                     break;
             }
 
-            File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Injected ({pixelX}, {pixelY}) -> (dx={dx}, dy={dy}) Action={data.Action}\n");
+            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected ({pixelX}, {pixelY}) -> (dx={dx}, dy={dy}) Action={data.Action}\n");
         }
 
         public void ResetButtons()

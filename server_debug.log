@@ -41,3 +41,15 @@
 [08:48:16.489] Injected (1086, 729) -> (dx=54160, dy=29509) Action=MOVE
 [08:48:16.496] Event: UP (0.566, 0.676) p=0.00 tool=1
 [08:48:16.496] Injected (1086, 729) -> (dx=54160, dy=29509) Action=UP
+[08:49:10.213] Incoming connection from 127.0.0.1:56987
+[08:49:10.215] Handshake complete for 127.0.0.1:56987
+[08:50:19.778] Incoming connection from 127.0.0.1:57057
+[08:50:19.782] Handshake complete for 127.0.0.1:57057
+[08:50:44.591] Incoming connection from 127.0.0.1:57086
+[08:50:44.594] Handshake complete for 127.0.0.1:57086
+[08:50:46.492] Client disconnected: 127.0.0.1:57086
+[08:50:48.621] Incoming connection from 127.0.0.1:57100
+[08:50:48.630] Handshake complete for 127.0.0.1:57100
+[08:51:49.093] Incoming connection from 127.0.0.1:63777
+[08:51:49.096] Handshake complete for 127.0.0.1:63777
+[08:52:04.741] Client disconnected: 127.0.0.1:63777

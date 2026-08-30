@@ -20,15 +20,30 @@ namespace PentabServer.Models
         public const string HoverEnter = "HOVER_ENTER";
         public const string HoverExit = "HOVER_EXIT";
         public const string Cancel = "CANCEL";
+        public const string Click = "CLICK";
+        public const string Scroll = "SCROLL";
+        public const string DownLeft = "DOWN_LEFT";
+        public const string UpLeft = "UP_LEFT";
+        public const string DownRight = "DOWN_RIGHT";
+        public const string UpRight = "UP_RIGHT";
     }
 
     public class PenData
     {
+        [JsonPropertyName("mode")]
+        public string Mode { get; set; } = "ABSOLUTE"; // "ABSOLUTE" or "TRACKPAD"
+
         [JsonPropertyName("x")]
         public float X { get; set; }
 
         [JsonPropertyName("y")]
         public float Y { get; set; }
+
+        [JsonPropertyName("dx")]
+        public float Dx { get; set; }
+
+        [JsonPropertyName("dy")]
+        public float Dy { get; set; }
 
         [JsonPropertyName("pressure")]
         public float Pressure { get; set; }
@@ -45,10 +60,17 @@ namespace PentabServer.Models
         [JsonPropertyName("action")]
         public string Action { get; set; } = string.Empty;
 
+        [JsonPropertyName("clickType")]
+        public string ClickType { get; set; } = string.Empty; // "LEFT", "RIGHT", "DOUBLE_LEFT"
+
         [JsonPropertyName("buttonState")]
         public int ButtonState { get; set; }
+
+        [JsonPropertyName("scrollDelta")]
+        public int ScrollDelta { get; set; }
 
         [JsonPropertyName("timestamp")]
         public long Timestamp { get; set; }
     }
 }
+

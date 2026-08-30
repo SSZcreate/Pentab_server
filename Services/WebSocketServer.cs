@@ -5,9 +5,9 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using PentabServer.Models;
 
 namespace PentabServer.Services
@@ -101,8 +101,7 @@ namespace PentabServer.Services
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken serverCt)
         {
             tcpClient.NoDelay = true;
-            tcpClient.ReceiveTimeout = 10000;
-            tcpClient.SendTimeout = 5000;
+            // Keep timeouts default (infinite) so WebSocket stream remains open continuously
 
             string endPoint = "Unknown";
             try
@@ -112,7 +111,11 @@ namespace PentabServer.Services
             catch { }
 
             LogMessage?.Invoke($"Incoming TCP connection from: {endPoint}");
-            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
+            try
+            {
+                File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
+            }
+            catch { }
 
             // Cancel and close older client
             var clientCts = CancellationTokenSource.CreateLinkedTokenSource(serverCt);
@@ -162,7 +165,6 @@ namespace PentabServer.Services
 
                     if (string.IsNullOrEmpty(secKey))
                     {
-                        File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Missing Sec-WebSocket-Key\n");
                         return;
                     }
 
@@ -185,9 +187,20 @@ namespace PentabServer.Services
                     await stream.WriteAsync(responseBytes, 0, responseBytes.Length, ct);
                     await stream.FlushAsync(ct);
 
-                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Handshake complete for {endPoint}\n");
                     LogMessage?.Invoke($"WebSocket connected: {endPoint}");
                     ClientConnected?.Invoke(endPoint);
+
+                    // Send initial Status Message to client
+                    try
+                    {
+                        var primary = Screen.PrimaryScreen;
+                        int sWidth = primary?.Bounds.Width ?? 1920;
+                        int sHeight = primary?.Bounds.Height ?? 1080;
+                        string statusJson = $"{{\"type\":\"status\",\"connected\":true,\"screenWidth\":{sWidth},\"screenHeight\":{sHeight}}}";
+                        byte[] statusBytes = Encoding.UTF8.GetBytes(statusJson);
+                        await SendTextFrameAsync(stream, statusBytes, ct);
+                    }
+                    catch { }
 
                     // Frame loop
                     while (!ct.IsCancellationRequested && tcpClient.Connected)
@@ -248,7 +261,10 @@ namespace PentabServer.Services
                             byte[] pong = new byte[2 + payloadLen];
                             pong[0] = 0x8A; // Pong opcode 10
                             pong[1] = (byte)payloadLen;
-                            Buffer.BlockCopy(payload, 0, pong, 2, payloadLen);
+                            if (payloadLen > 0)
+                            {
+                                Buffer.BlockCopy(payload, 0, pong, 2, payloadLen);
+                            }
                             await stream.WriteAsync(pong, 0, pong.Length, ct);
                             await stream.FlushAsync(ct);
                         }
@@ -275,11 +291,37 @@ namespace PentabServer.Services
                 finally
                 {
                     _inputInjector.ResetButtons();
-                    ClientDisconnected?.Invoke();
+                    if (ReferenceEquals(_currentTcpClient, tcpClient))
+                    {
+                        ClientDisconnected?.Invoke();
+                    }
                     LogMessage?.Invoke($"WebSocket disconnected: {endPoint}");
-                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Client disconnected: {endPoint}\n");
                 }
             }
+        }
+
+        private static async Task SendTextFrameAsync(NetworkStream stream, byte[] payload, CancellationToken ct)
+        {
+            int len = payload.Length;
+            if (len < 126)
+            {
+                byte[] header = new byte[2 + len];
+                header[0] = 0x81; // FIN + Text
+                header[1] = (byte)len;
+                Buffer.BlockCopy(payload, 0, header, 2, len);
+                await stream.WriteAsync(header, 0, header.Length, ct);
+            }
+            else if (len <= 65535)
+            {
+                byte[] header = new byte[4 + len];
+                header[0] = 0x81;
+                header[1] = 126;
+                header[2] = (byte)(len >> 8);
+                header[3] = (byte)(len & 0xFF);
+                Buffer.BlockCopy(payload, 0, header, 4, len);
+                await stream.WriteAsync(header, 0, header.Length, ct);
+            }
+            await stream.FlushAsync(ct);
         }
 
         private static async Task<bool> ReadExactAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken ct)
@@ -313,3 +355,4 @@ namespace PentabServer.Services
         }
     }
 }
+

@@ -14,6 +14,12 @@
 
 ---
 
+<div align="center">
+  <img src="docs/images/hero_banner.png" alt="Pentab System Overview" width="85%" />
+</div>
+
+---
+
 ## 🌟 主な特徴
 
 - ⚡ **超高速・軽量な単一バイナリ**: 外部ランタイム不要のスタンドアロン単一 `.exe`（Self-Contained Single File）。
@@ -31,6 +37,15 @@
 - 🖥️ **マルチモニター & アスペクト比補正**:
   - プライマリディスプレイおよびマルチモニター環境に対応
   - タブレットと PC 画面のアスペクト比自動マッピング
+
+---
+
+## 📸 アプリケーション画面
+
+<div align="center">
+  <img src="docs/images/server_ui.png" alt="Pentab Server PC Controller UI" width="85%" />
+  <p><em>Pentab Server メインウィンドウ（リアルタイム座標・筆圧・Hzモニタリング）</em></p>
+</div>
 
 ---
 

@@ -165,8 +165,8 @@ namespace PentabServer.Services
                 return;
             }
 
-            // 2. Handle Clicks
-            if (action == ActionType.Click || !string.IsNullOrEmpty(clickType))
+            // 2. Handle Clicks (Only when action is CLICK or explicit click action)
+            if (action == ActionType.Click)
             {
                 if (clickType == "RIGHT" || action == "CLICK_RIGHT")
                 {
@@ -183,7 +183,7 @@ namespace PentabServer.Services
                     DoubleLeftClick();
                     try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected DoubleLeftClick\n"); } catch { }
                 }
-                else
+                else if (clickType == "LEFT" || string.IsNullOrEmpty(clickType))
                 {
                     LeftClick();
                     try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected LeftClick\n"); } catch { }

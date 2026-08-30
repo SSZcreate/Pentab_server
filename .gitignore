@@ -17,6 +17,8 @@ packages/
 ## Build results
 [Dd]ebug/
 [Rr]elease/
+publish/
+*.log
 x64/
 x86/
 
@@ -27,3 +29,4 @@ x86/
 ## OS
 Thumbs.db
 .DS_Store
+

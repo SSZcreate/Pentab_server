@@ -1,11 +1,11 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using PentabServer.Models;
@@ -36,7 +36,7 @@ namespace PentabServer.Services
 
         public void Start(int port = 8765)
         {
-            if (IsRunning) Stop();
+            if (IsRunning) return;
 
             Port = port;
             _cts = new CancellationTokenSource();
@@ -45,12 +45,12 @@ namespace PentabServer.Services
             {
                 _tcpListener = new TcpListener(IPAddress.Any, port);
                 _tcpListener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _tcpListener.Start(100);
+                _tcpListener.Start();
 
-                LogMessage?.Invoke($"WebSocket TCP server listening on 0.0.0.0:{port}");
                 ServerStateChanged?.Invoke(true);
+                LogMessage?.Invoke($"Server started listening on 0.0.0.0:{port}");
 
-                Task.Run(() => AcceptLoopAsync(_cts.Token), _cts.Token);
+                Task.Run(() => AcceptLoopAsync(_cts.Token));
             }
             catch (Exception ex)
             {
@@ -64,6 +64,8 @@ namespace PentabServer.Services
         {
             _cts?.Cancel();
             _activeClientCts?.Cancel();
+            try { _currentTcpClient?.Close(); } catch { }
+
             try
             {
                 _tcpListener?.Stop();
@@ -73,7 +75,7 @@ namespace PentabServer.Services
             _tcpListener = null;
             _inputInjector.ResetButtons();
             ServerStateChanged?.Invoke(false);
-            LogMessage?.Invoke("WebSocket server stopped");
+            LogMessage?.Invoke("Server stopped");
         }
 
         private async Task AcceptLoopAsync(CancellationToken ct)
@@ -83,7 +85,6 @@ namespace PentabServer.Services
                 try
                 {
                     var tcpClient = await _tcpListener.AcceptTcpClientAsync(ct);
-                    // Process client in a completely independent thread
                     _ = Task.Run(() => ProcessTcpClientAsync(tcpClient, ct), ct);
                 }
                 catch (OperationCanceledException)
@@ -92,11 +93,7 @@ namespace PentabServer.Services
                 }
                 catch (Exception ex)
                 {
-                    if (!ct.IsCancellationRequested)
-                    {
-                        LogMessage?.Invoke($"Accept error: {ex.Message}");
-                    }
-                    await Task.Delay(100, ct);
+                    LogMessage?.Invoke($"Accept error: {ex.Message}");
                 }
             }
         }
@@ -104,7 +101,7 @@ namespace PentabServer.Services
         private async Task ProcessTcpClientAsync(TcpClient tcpClient, CancellationToken serverCt)
         {
             tcpClient.NoDelay = true;
-            tcpClient.ReceiveTimeout = 10000; // 10s receive timeout to detect dead connections
+            tcpClient.ReceiveTimeout = 10000;
             tcpClient.SendTimeout = 5000;
 
             string endPoint = "Unknown";
@@ -117,7 +114,7 @@ namespace PentabServer.Services
             LogMessage?.Invoke($"Incoming TCP connection from: {endPoint}");
             File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Incoming connection from {endPoint}\n");
 
-            // Cancel and close any older active client immediately
+            // Cancel and close older client
             var clientCts = CancellationTokenSource.CreateLinkedTokenSource(serverCt);
             var prevCts = Interlocked.Exchange(ref _activeClientCts, clientCts);
             prevCts?.Cancel();
@@ -128,73 +125,63 @@ namespace PentabServer.Services
             var ct = clientCts.Token;
 
             using (tcpClient)
+            using (var stream = tcpClient.GetStream())
             {
-                var stream = tcpClient.GetStream();
-
                 try
                 {
-                    // 1. Read HTTP handshake byte-by-byte up to \r\n\r\n
-                    using var ms = new MemoryStream();
-                    var singleByte = new byte[1];
-                    int matchIndex = 0;
-                    var matchPattern = new byte[] { (byte)'\r', (byte)'\n', (byte)'\r', (byte)'\n' };
-
-                    while (!ct.IsCancellationRequested)
+                    // Read HTTP upgrade request
+                    var headerBytes = new byte[4096];
+                    int totalRead = 0;
+                    while (totalRead < headerBytes.Length && !ct.IsCancellationRequested)
                     {
-                        int read = await stream.ReadAsync(singleByte, 0, 1, ct);
-                        if (read <= 0)
+                        int read = await stream.ReadAsync(headerBytes, totalRead, 1, ct);
+                        if (read <= 0) return;
+                        totalRead += read;
+                        if (totalRead >= 4 &&
+                            headerBytes[totalRead - 4] == '\r' &&
+                            headerBytes[totalRead - 3] == '\n' &&
+                            headerBytes[totalRead - 2] == '\r' &&
+                            headerBytes[totalRead - 1] == '\n')
                         {
-                            File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Stream EOF during handshake from {endPoint}\n");
-                            return;
-                        }
-                        ms.Write(singleByte, 0, 1);
-
-                        if (singleByte[0] == matchPattern[matchIndex])
-                        {
-                            matchIndex++;
-                            if (matchIndex == 4) break;
-                        }
-                        else
-                        {
-                            matchIndex = (singleByte[0] == matchPattern[0]) ? 1 : 0;
-                        }
-
-                        if (ms.Length > 8192) return;
-                    }
-
-                    string request = Encoding.UTF8.GetString(ms.ToArray());
-                    string? clientKey = null;
-
-                    using (var reader = new StringReader(request))
-                    {
-                        string? line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            if (line.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase))
-                            {
-                                clientKey = line.Substring("Sec-WebSocket-Key:".Length).Trim();
-                                break;
-                            }
+                            break;
                         }
                     }
 
-                    if (string.IsNullOrEmpty(clientKey))
+                    string requestStr = Encoding.UTF8.GetString(headerBytes, 0, totalRead);
+                    string? secKey = null;
+
+                    var lines = requestStr.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+                    foreach (var line in lines)
                     {
-                        var badResponse = Encoding.UTF8.GetBytes("HTTP/1.1 400 Bad Request\r\n\r\n");
-                        await stream.WriteAsync(badResponse, ct);
+                        if (line.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            secKey = line.Substring("Sec-WebSocket-Key:".Length).Trim();
+                            break;
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(secKey))
+                    {
+                        File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Missing Sec-WebSocket-Key\n");
                         return;
                     }
 
-                    var acceptKey = Convert.ToBase64String(
-                        SHA1.HashData(Encoding.UTF8.GetBytes(clientKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
-                    );
+                    // Compute WebSocket accept hash
+                    string acceptKey;
+                    using (var sha1 = SHA1.Create())
+                    {
+                        byte[] hashBytes = sha1.ComputeHash(Encoding.UTF8.GetBytes(secKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
+                        acceptKey = Convert.ToBase64String(hashBytes);
+                    }
 
-                    var responseHeader = "HTTP/1.1 101 Switching Protocols\r\n" +
-                                         "Upgrade: websocket\r\n" +
-                                         "Connection: Upgrade\r\n" +
-                                         $"Sec-WebSocket-Accept: {acceptKey}\r\n\r\n";
+                    // Send 101 Switching Protocols response
+                    string response =
+                        "HTTP/1.1 101 Switching Protocols\r\n" +
+                        "Upgrade: websocket\r\n" +
+                        "Connection: Upgrade\r\n" +
+                        $"Sec-WebSocket-Accept: {acceptKey}\r\n\r\n";
 
-                    var responseBytes = Encoding.UTF8.GetBytes(responseHeader);
+                    byte[] responseBytes = Encoding.UTF8.GetBytes(response);
                     await stream.WriteAsync(responseBytes, 0, responseBytes.Length, ct);
                     await stream.FlushAsync(ct);
 
@@ -202,146 +189,127 @@ namespace PentabServer.Services
                     LogMessage?.Invoke($"WebSocket connected: {endPoint}");
                     ClientConnected?.Invoke(endPoint);
 
-                    // 2. RFC 6455 WebSocket Frame Loop
-                    while (!ct.IsCancellationRequested)
+                    // Frame loop
+                    while (!ct.IsCancellationRequested && tcpClient.Connected)
                     {
-                        var header = new byte[2];
-                        if (!await ReadExactAsync(stream, header, 0, 2, ct)) break;
+                        byte[] head = new byte[2];
+                        if (!await ReadExactAsync(stream, head, 0, 2, ct)) break;
 
-                        byte b0 = header[0];
-                        byte b1 = header[1];
+                        byte b1 = head[0];
+                        byte b2 = head[1];
 
-                        int opcode = b0 & 0x0F;
-                        bool isMasked = (b1 & 0x80) != 0;
-                        long payloadLen = b1 & 0x7F;
+                        int opcode = b1 & 0x0F;
+                        bool mask = (b2 & 0x80) != 0;
+                        int payloadLen = b2 & 0x7F;
+
+                        if (opcode == 8) // Close
+                        {
+                            break;
+                        }
 
                         if (payloadLen == 126)
                         {
-                            var ext = new byte[2];
+                            byte[] ext = new byte[2];
                             if (!await ReadExactAsync(stream, ext, 0, 2, ct)) break;
                             payloadLen = (ext[0] << 8) | ext[1];
                         }
                         else if (payloadLen == 127)
                         {
-                            var ext = new byte[8];
+                            byte[] ext = new byte[8];
                             if (!await ReadExactAsync(stream, ext, 0, 8, ct)) break;
-                            payloadLen = 0;
-                            for (int i = 0; i < 8; i++) payloadLen = (payloadLen << 8) | ext[i];
+                            payloadLen = (int)((((ulong)ext[0]) << 56) | (((ulong)ext[1]) << 48) |
+                                               (((ulong)ext[2]) << 40) | (((ulong)ext[3]) << 32) |
+                                               (((ulong)ext[4]) << 24) | (((ulong)ext[5]) << 16) |
+                                               (((ulong)ext[6]) << 8) | (ulong)ext[7]);
                         }
 
-                        byte[]? mask = null;
-                        if (isMasked)
+                        byte[] maskingKey = new byte[4];
+                        if (mask)
                         {
-                            mask = new byte[4];
-                            if (!await ReadExactAsync(stream, mask, 0, 4, ct)) break;
+                            if (!await ReadExactAsync(stream, maskingKey, 0, 4, ct)) break;
                         }
 
-                        if (payloadLen > 1024 * 1024) break;
-
-                        var payload = new byte[payloadLen];
+                        byte[] payload = new byte[payloadLen];
                         if (payloadLen > 0)
                         {
-                            if (!await ReadExactAsync(stream, payload, 0, (int)payloadLen, ct)) break;
-                            if (isMasked && mask != null)
+                            if (!await ReadExactAsync(stream, payload, 0, payloadLen, ct)) break;
+                        }
+
+                        if (mask)
+                        {
+                            for (int i = 0; i < payloadLen; i++)
                             {
-                                for (int i = 0; i < payload.Length; i++)
-                                {
-                                    payload[i] = (byte)(payload[i] ^ mask[i % 4]);
-                                }
+                                payload[i] = (byte)(payload[i] ^ maskingKey[i % 4]);
                             }
                         }
 
-                        if (opcode == 0x8) // Close
+                        if (opcode == 9) // Ping -> Send Pong
                         {
-                            var closeResp = new byte[] { 0x88, 0x00 };
-                            await stream.WriteAsync(closeResp, 0, closeResp.Length, ct);
-                            break;
-                        }
-                        else if (opcode == 0x9) // Ping
-                        {
-                            var pongHeader = new byte[] { (byte)0x8A, (byte)payload.Length };
-                            await stream.WriteAsync(pongHeader, 0, pongHeader.Length, ct);
-                            if (payload.Length > 0)
-                            {
-                                await stream.WriteAsync(payload, 0, payload.Length, ct);
-                            }
+                            byte[] pong = new byte[2 + payloadLen];
+                            pong[0] = 0x8A; // Pong opcode 10
+                            pong[1] = (byte)payloadLen;
+                            Buffer.BlockCopy(payload, 0, pong, 2, payloadLen);
+                            await stream.WriteAsync(pong, 0, pong.Length, ct);
                             await stream.FlushAsync(ct);
                         }
-                        else if (opcode == 0x1) // Text
+                        else if (opcode == 1 || opcode == 2) // Text or Binary
                         {
-                            var json = Encoding.UTF8.GetString(payload);
+                            string json = Encoding.UTF8.GetString(payload);
                             try
                             {
                                 var penData = JsonSerializer.Deserialize<PenData>(json);
                                 if (penData != null)
                                 {
-                                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Event: {penData.Action} ({penData.X:F3}, {penData.Y:F3}) p={penData.Pressure:F2} tool={penData.ToolType}\n");
                                     _inputInjector.Inject(penData);
                                     PenDataReceived?.Invoke(penData);
                                 }
                             }
-                            catch (JsonException) { }
+                            catch { }
                         }
                     }
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Exception: {ex.Message} for {endPoint}\n");
-                    if (!ct.IsCancellationRequested)
-                    {
-                        LogMessage?.Invoke($"Connection error: {ex.Message}");
-                    }
+                    LogMessage?.Invoke($"Client error: {ex.Message}");
                 }
                 finally
                 {
-                    File.AppendAllText("server_debug.log", $"[{DateTime.Now:HH:mm:ss.fff}] Client disconnected: {endPoint}\n");
-                    try
-                    {
-                        stream?.Close();
-                        tcpClient?.Close();
-                    }
-                    catch { }
                     _inputInjector.ResetButtons();
                     ClientDisconnected?.Invoke();
-                    LogMessage?.Invoke($"Client disconnected: {endPoint}");
+                    LogMessage?.Invoke($"WebSocket disconnected: {endPoint}");
+                    File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Client disconnected: {endPoint}\n");
                 }
             }
         }
 
         private static async Task<bool> ReadExactAsync(NetworkStream stream, byte[] buffer, int offset, int count, CancellationToken ct)
         {
-            int totalRead = 0;
-            while (totalRead < count)
+            int total = 0;
+            while (total < count)
             {
-                int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, ct);
+                int read = await stream.ReadAsync(buffer, offset + total, count - total, ct);
                 if (read <= 0) return false;
-                totalRead += read;
+                total += read;
             }
             return true;
         }
 
         public static string[] GetLocalIPAddresses()
         {
-            var ipList = new System.Collections.Generic.List<string>();
+            var ips = new System.Collections.Generic.List<string>();
             try
             {
-                foreach (var netInterface in NetworkInterface.GetAllNetworkInterfaces())
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                foreach (var ip in host.AddressList)
                 {
-                    if (netInterface.OperationalStatus == OperationalStatus.Up &&
-                        netInterface.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                    if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
                     {
-                        foreach (var addr in netInterface.GetIPProperties().UnicastAddresses)
-                        {
-                            if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
-                            {
-                                ipList.Add(addr.Address.ToString());
-                            }
-                        }
+                        ips.Add(ip.ToString());
                     }
                 }
             }
             catch { }
-            return ipList.ToArray();
+            return ips.ToArray();
         }
     }
 }

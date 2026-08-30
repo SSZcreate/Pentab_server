@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Ransomware canary file deployment and monitoring agent.
 
 Deploys decoy files across critical directories and monitors them using
@@ -78,8 +78,8 @@ CANARY_FILE_TEMPLATES = {
     ),
     "AWS_Access_Keys.csv": (
         b"User Name,Access Key ID,Secret Access Key\n"
-        b"svc-prod-deploy,AKIAIOSFODNN7EXAMPLE,wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
-        b"svc-backup,AKIAI44QH8DHBEXAMPLE,je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY\n"
+        b"svc-prod-deploy,AKIA_SAMPLE_KEY_EXAMPLE_1,wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+        b"svc-backup,AKIA_SAMPLE_KEY_EXAMPLE_2,je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY\n"
     ),
 }
 

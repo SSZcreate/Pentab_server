@@ -1,4 +1,4 @@
----
+﻿---
 name: implementing-canary-tokens-for-network-intrusion
 description: 'Deploys DNS, HTTP, and AWS API key canary tokens across network infrastructure
   to detect unauthorized access and lateral movement. Integrates with webhook alerting
@@ -166,7 +166,7 @@ Deploy the fake credentials:
 ```ini
 # Place in ~/.aws/credentials on honeypot or jump servers
 [default]
-aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_access_key_id = AKIA_SAMPLE_KEY_EXAMPLE_1
 aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 region = us-east-1
 

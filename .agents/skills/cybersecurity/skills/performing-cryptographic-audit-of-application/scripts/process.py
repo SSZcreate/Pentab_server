@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Cryptographic Audit Scanner
 
@@ -279,7 +279,7 @@ import hashlib
 import random
 
 password = "SuperSecret123!"
-api_key = "sk-abcdef1234567890abcdef"
+api_key = "OPENAI_SAMPLE_API_KEY_PLACEHOLDER"
 
 def hash_password(pw):
     return hashlib.md5(pw.encode()).hexdigest()

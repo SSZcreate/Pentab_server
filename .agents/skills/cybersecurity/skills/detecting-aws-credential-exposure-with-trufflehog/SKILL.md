@@ -1,4 +1,4 @@
----
+﻿---
 name: detecting-aws-credential-exposure-with-trufflehog
 description: 'Scan source code repositories, CI/CD pipelines, and configuration files
   for exposed AWS credentials using TruffleHog, git-secrets, and AWS-native detection.
@@ -139,7 +139,7 @@ for line in sys.stdin:
 "
 
 # Check if a detected access key is still active
-aws iam get-access-key-last-used --access-key-id AKIAIOSFODNN7EXAMPLE
+aws iam get-access-key-last-used --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_1
 
 # List all access keys for a user to find active keys
 aws iam list-access-keys --user-name target-user \
@@ -210,7 +210,7 @@ Execute incident response procedures when verified credentials are found exposed
 # IMMEDIATE: Deactivate the exposed access key
 aws iam update-access-key \
   --user-name compromised-user \
-  --access-key-id AKIAEXPOSEDKEY123456 \
+  --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_3 \
   --status Inactive
 
 # Generate new credentials
@@ -218,7 +218,7 @@ aws iam create-access-key --user-name compromised-user
 
 # Review CloudTrail for unauthorized usage of the exposed key
 aws cloudtrail lookup-events \
-  --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=AKIAEXPOSEDKEY123456 \
+  --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=AKIA_SAMPLE_KEY_EXAMPLE_3 \
   --start-time 2026-01-01T00:00:00Z \
   --query 'Events[*].[EventTime,EventName,EventSource,SourceIPAddress]' \
   --output table
@@ -226,7 +226,7 @@ aws cloudtrail lookup-events \
 # Delete the exposed key after rotation is confirmed
 aws iam delete-access-key \
   --user-name compromised-user \
-  --access-key-id AKIAEXPOSEDKEY123456
+  --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_3
 
 # Remove the credential from git history using BFG Repo Cleaner
 java -jar bfg.jar --replace-text credentials.txt repo.git

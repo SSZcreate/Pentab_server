@@ -1,4 +1,4 @@
-# API Reference: Gitleaks Secret Scanning
+﻿# API Reference: Gitleaks Secret Scanning
 
 ## Libraries Used
 
@@ -38,7 +38,7 @@ gitleaks dir --source=/path/to/code --report-format=json --report-path=results.j
 
 ### Scan from stdin
 ```bash
-echo "aws_secret_access_key=AKIAIOSFODNN7EXAMPLE" | gitleaks stdin
+echo "aws_secret_access_key=AKIA_SAMPLE_KEY_EXAMPLE_1" | gitleaks stdin
 ```
 
 ### Key CLI Flags

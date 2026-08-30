@@ -1,4 +1,4 @@
-# Gitleaks Secret Scanning Templates
+﻿# Gitleaks Secret Scanning Templates
 
 ## Pre-Commit Configuration
 
@@ -79,7 +79,7 @@ regexes = [
 # Per-rule allowlists
 [[rules.allowlist]]
 description = "Allow AWS example keys"
-regexes = ["AKIAIOSFODNN7EXAMPLE"]
+regexes = ["AKIA_SAMPLE_KEY_EXAMPLE_1"]
 ```
 
 ## GitHub Actions Workflow

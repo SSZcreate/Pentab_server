@@ -1,4 +1,4 @@
----
+﻿---
 name: detecting-cryptomining-in-cloud
 description: 'This skill teaches security teams how to detect and respond to unauthorized
   cryptocurrency mining operations in cloud environments. It covers identifying cryptomining
@@ -333,7 +333,7 @@ Containment Time: 2025-02-23T14:41:00Z (18 minutes)
 
 INITIAL ACCESS:
   Vector: Exposed IAM access key in public GitHub repository
-  Credential: AKIAIOSFODNN7EXAMPLE (user: ci-deploy)
+  Credential: AKIA_SAMPLE_KEY_EXAMPLE_1 (user: ci-deploy)
   First Malicious Activity: 2025-02-23T14:12:00Z
 
 IMPACT:
@@ -349,7 +349,7 @@ DETECTION SIGNALS:
   [14:23] GuardDuty: CryptoCurrency:EC2/BitcoinTool.B (HIGH) x 200
 
 CONTAINMENT ACTIONS:
-  [14:25] IAM access key AKIAIOSFODNN7EXAMPLE deactivated
+  [14:25] IAM access key AKIA_SAMPLE_KEY_EXAMPLE_1 deactivated
   [14:30] CloudTrail re-enabled in all 8 regions
   [14:35] API termination protection disabled on 200 instances
   [14:41] All 200 instances terminated

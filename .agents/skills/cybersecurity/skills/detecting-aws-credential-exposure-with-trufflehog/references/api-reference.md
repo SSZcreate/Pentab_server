@@ -1,4 +1,4 @@
-# AWS Credential Exposure Detection API Reference
+﻿# AWS Credential Exposure Detection API Reference
 
 ## TruffleHog CLI
 
@@ -44,17 +44,17 @@ git secrets --add-provider -- cat /path/to/patterns.txt
 
 ```bash
 # Check key last used
-aws iam get-access-key-last-used --access-key-id AKIAXXXXXXXXXXXXXXXX
+aws iam get-access-key-last-used --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_4
 
 # List access keys for user
 aws iam list-access-keys --user-name jsmith
 
 # Deactivate exposed key
-aws iam update-access-key --access-key-id AKIAXXXXXXXXXXXXXXXX \
+aws iam update-access-key --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_4 \
   --user-name jsmith --status Inactive
 
 # Delete key
-aws iam delete-access-key --access-key-id AKIAXXXXXXXXXXXXXXXX \
+aws iam delete-access-key --access-key-id AKIA_SAMPLE_KEY_EXAMPLE_4 \
   --user-name jsmith
 
 # Create new key (after rotation)
@@ -82,7 +82,7 @@ Secret Key:     [A-Za-z0-9/+=]{40}
 ```sql
 SELECT eventtime, useridentity.accesskeyid, sourceipaddress, eventname
 FROM cloudtrail_logs
-WHERE useridentity.accesskeyid = 'AKIAXXXXXXXXXXXXXXXX'
+WHERE useridentity.accesskeyid = 'AKIA_SAMPLE_KEY_EXAMPLE_4'
 ORDER BY eventtime DESC
 LIMIT 100;
 ```

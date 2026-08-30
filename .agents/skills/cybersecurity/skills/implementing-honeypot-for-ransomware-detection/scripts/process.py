@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Ransomware Honeypot Deployment and Monitoring Tool
 
@@ -60,7 +60,7 @@ CANARY_TEMPLATES = {
     ],
     "engineering": [
         ("!_Product_Roadmap_Confidential.docx", "Product Roadmap 2026-2028\nProject Phoenix: AI-powered analytics\nProject Titan: Next-gen platform"),
-        ("000_Source_Code_Access_Keys.txt", "Repository Access Tokens\nGitHub Enterprise: ghp_XXXXXXXXXXXX\nAWS CodeCommit: AKIAIOSFODNN7EXAMPLE"),
+        ("000_Source_Code_Access_Keys.txt", "Repository Access Tokens\nGitHub Enterprise: ghp_XXXXXXXXXXXX\nAWS CodeCommit: AKIA_SAMPLE_KEY_EXAMPLE_1"),
         ("_Patent_Application_Draft.pdf", "US Patent Application\nTitle: Method for Distributed Computing\nInventor: Dr. Jane Smith"),
     ],
     "executive": [

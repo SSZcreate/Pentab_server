@@ -1,4 +1,4 @@
----
+﻿---
 name: deploying-tailscale-for-zero-trust-vpn
 description: Deploys and configures Tailscale (or self-hosted Headscale) as a WireGuard-based zero trust mesh VPN, setting up identity-aware ACLs, exit nodes, subnet routers, and MagicDNS for encrypted peer-to-peer connectivity. Use when replacing traditional VPN servers with an identity-authenticated mesh network or enforcing granular per-device access control lists.
 domain: cybersecurity
@@ -113,7 +113,7 @@ services:
     container_name: tailscale
     hostname: my-service
     environment:
-      - TS_AUTHKEY=tskey-auth-xxxxx  # Pre-auth key
+      - TS_AUTHKEY=YOUR_TAILSCALE_AUTHKEY  # Pre-auth key
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_EXTRA_ARGS=--advertise-tags=tag:container
     volumes:
@@ -139,7 +139,7 @@ metadata:
   namespace: tailscale
 type: Opaque
 stringData:
-  TS_AUTHKEY: "tskey-auth-xxxxx"
+  TS_AUTHKEY: "YOUR_TAILSCALE_AUTHKEY"
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -344,7 +344,7 @@ tailscale up --login-server https://headscale.example.com
 # Force re-authentication periodically
 
 # Disable key expiry for servers (use auth keys instead)
-sudo tailscale up --authkey=tskey-auth-xxxxx
+sudo tailscale up --authkey=YOUR_TAILSCALE_AUTHKEY
 
 # Pre-auth keys for automated deployment
 # Create ephemeral, single-use keys for CI/CD
@@ -419,7 +419,7 @@ tailscale netcheck
 
 ```bash
 # Use ephemeral auth keys in CI/CD
-export TS_AUTHKEY=tskey-auth-xxxxx-ephemeral
+export TS_AUTHKEY=YOUR_TAILSCALE_AUTHKEY-ephemeral
 tailscale up --authkey=$TS_AUTHKEY --hostname=ci-runner-$CI_JOB_ID
 
 # Access internal resources during build/deploy

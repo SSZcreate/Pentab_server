@@ -14,6 +14,7 @@ namespace PentabServer.Services
         public int MonitorIndex { get; set; } = -1; // -1: Primary, -2: Virtual Desktop, >=0: specific monitor
         public bool AutoStart { get; set; } = false;
         public bool StartMinimized { get; set; } = true;
+        public string Language { get; set; } = "en"; // "en", "ja", "zh"
 
         private static string SettingsFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),

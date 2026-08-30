@@ -5,13 +5,13 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PentabServer"
         mc:Ignorable="d"
-        Title="Pentab PC Server" Height="660" Width="920"
+        Title="Pentab PC Server" Height="680" Width="940"
         Icon="Resources/app.ico"
         Background="#121214" Foreground="#E0E0E0"
         WindowStartupLocation="CenterScreen"
         WindowState="Normal"
         ShowInTaskbar="True"
-        FontFamily="Segoe UI, Meiryo UI, sans-serif">
+        FontFamily="Segoe UI, Meiryo UI, Microsoft YaHei UI, sans-serif">
 
     <Window.Resources>
         <Style TargetType="TextBlock">
@@ -79,12 +79,19 @@
                 <Image Source="Resources/app.ico" Width="36" Height="36" Margin="0,0,12,0" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="Pentab PC Server" FontSize="20" FontWeight="Bold" Foreground="#4A90E2"/>
-                    <TextBlock Text="Ultra-low latency Android tablet bridge with System Tray &amp; Auto-Start" FontSize="12" Foreground="#8E8E93" Margin="0,2,0,0"/>
+                    <TextBlock x:Name="HeaderTitleText" Text="Pentab PC Server" FontSize="20" FontWeight="Bold" Foreground="#4A90E2"/>
+                    <TextBlock x:Name="HeaderSubtitleText" Text="Ultra-low latency Android tablet bridge with System Tray &amp; Auto-Start" FontSize="12" Foreground="#8E8E93" Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <!-- Status Badge & Tray Button -->
+                <!-- Language Selector & Status Badge & Tray Button -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Language Selection -->
+                    <ComboBox x:Name="LanguageComboBox" Width="110" Height="32" Margin="0,0,8,0" VerticalContentAlignment="Center" SelectionChanged="LanguageComboBox_SelectionChanged">
+                        <ComboBoxItem Content="🌐 English" Tag="en"/>
+                        <ComboBoxItem Content="🇯🇵 日本語" Tag="ja"/>
+                        <ComboBoxItem Content="🇨🇳 简体中文" Tag="zh"/>
+                    </ComboBox>
+
                     <Border Background="#242429" CornerRadius="8" Padding="12,6" BorderBrush="#3D3D45" BorderThickness="1" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="#FF5252" Margin="0,0,8,0"/>
@@ -107,18 +114,18 @@
             <Border Grid.Column="0" Background="#1B1B1F" CornerRadius="10" Padding="16" Margin="0,0,12,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock Text="Server Configuration" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
+                        <TextBlock x:Name="ConfigTitleText" Text="Server Configuration" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
 
                         <!-- Port Setting -->
-                        <TextBlock Text="Port:" FontSize="13" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="PortLabelText" Text="Port:" FontSize="13" Margin="0,0,0,4"/>
                         <TextBox x:Name="PortTextBox" Text="8765" Margin="0,0,0,12"/>
 
                         <!-- Monitor Selection -->
-                        <TextBlock Text="Target Monitor:" FontSize="13" Margin="0,0,0,4"/>
+                        <TextBlock x:Name="TargetMonitorLabelText" Text="Target Monitor:" FontSize="13" Margin="0,0,0,4"/>
                         <ComboBox x:Name="MonitorComboBox" Margin="0,0,0,12" SelectionChanged="MonitorComboBox_SelectionChanged"/>
 
                         <!-- Auto-Start & Tray Settings -->
-                        <TextBlock Text="Startup &amp; Background Options:" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,4"/>
+                        <TextBlock x:Name="StartupOptionsLabelText" Text="Startup &amp; Background Options:" FontWeight="SemiBold" FontSize="13" Margin="0,4,0,4"/>
                         <CheckBox x:Name="AutoStartCheckBox" Content="Windows起動時に自動起動 (Auto-Start)" Checked="AutoStartCheckBox_Changed" Unchecked="AutoStartCheckBox_Changed"/>
                         <CheckBox x:Name="StartMinimizedCheckBox" Content="起動時にトレイへ最小化 (Start in Tray)" Checked="StartMinimizedCheckBox_Changed" Unchecked="StartMinimizedCheckBox_Changed"/>
 
@@ -133,14 +140,14 @@
                         <Separator Background="#2C2C32" Margin="0,0,0,10"/>
 
                         <!-- USB Connection Guide -->
-                        <TextBlock Text="Quick Connect (USB ADB):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                        <TextBlock x:Name="QuickConnectAdbLabelText" Text="Quick Connect (USB ADB):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                         <Border Background="#141416" CornerRadius="6" Padding="8,6" Margin="0,0,0,8">
                             <TextBlock Text="adb reverse tcp:8765 tcp:8765" FontFamily="Consolas, monospace" FontSize="11" Foreground="#4A90E2" TextWrapping="Wrap"/>
                         </Border>
-                        <Button Content="Copy ADB Command" Style="{StaticResource ModernButton}" Background="#2C2C32" Height="30" FontSize="12" Click="CopyAdbButton_Click" Margin="0,0,0,10"/>
+                        <Button x:Name="CopyAdbButton" Content="Copy ADB Command" Style="{StaticResource ModernButton}" Background="#2C2C32" Height="30" FontSize="12" Click="CopyAdbButton_Click" Margin="0,0,0,10"/>
 
                         <!-- Local IP Info -->
-                        <TextBlock Text="Wi-Fi Local IPs:" FontSize="12" Foreground="#8E8E93" Margin="0,0,0,2"/>
+                        <TextBlock x:Name="WifiLocalIpsLabelText" Text="Wi-Fi Local IPs:" FontSize="12" Foreground="#8E8E93" Margin="0,0,0,2"/>
                         <TextBlock x:Name="LocalIpText" Text="Detecting..." FontSize="12" Foreground="#B0B0B5" TextWrapping="Wrap"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -154,7 +161,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="Live Telemetry" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="LiveTelemetryLabelText" Text="Live Telemetry" FontWeight="Bold" FontSize="15" Margin="0,0,0,12"/>
 
                     <Grid Grid.Row="1">
                         <Grid.RowDefinitions>
@@ -172,7 +179,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Connected Client:" FontSize="13" Foreground="#8E8E93"/>
+                                <TextBlock x:Name="ConnectedClientLabelText" Text="Connected Client:" FontSize="13" Foreground="#8E8E93"/>
                                 <TextBlock x:Name="ClientIpText" Grid.Column="1" Text="None" FontWeight="SemiBold" Foreground="#4A90E2"/>
                             </Grid>
                         </Border>
@@ -186,14 +193,14 @@
 
                             <Border Grid.Column="0" Background="#242429" CornerRadius="8" Padding="12,10" Margin="0,0,6,0">
                                 <StackPanel>
-                                    <TextBlock Text="Event Rate" FontSize="11" Foreground="#8E8E93"/>
+                                    <TextBlock x:Name="EventRateLabelText" Text="Event Rate" FontSize="11" Foreground="#8E8E93"/>
                                     <TextBlock x:Name="EventRateText" Text="0 eps" FontSize="18" FontWeight="Bold" Foreground="#00E676" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
 
                             <Border Grid.Column="1" Background="#242429" CornerRadius="8" Padding="12,10" Margin="6,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Normalized Coords (X, Y)" FontSize="11" Foreground="#8E8E93"/>
+                                    <TextBlock x:Name="NormalizedCoordsLabelText" Text="Normalized Coords (X, Y)" FontSize="11" Foreground="#8E8E93"/>
                                     <TextBlock x:Name="CoordsText" Text="0.000, 0.000" FontSize="18" FontWeight="Bold" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
@@ -203,7 +210,7 @@
                         <Border Grid.Row="2" Background="#242429" CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
                             <StackPanel>
                                 <Grid Margin="0,0,0,6">
-                                    <TextBlock Text="Stylus Pressure" FontSize="12" Foreground="#8E8E93"/>
+                                    <TextBlock x:Name="StylusPressureLabelText" Text="Stylus Pressure" FontSize="12" Foreground="#8E8E93"/>
                                     <TextBlock x:Name="PressureValueText" Text="0.0%" HorizontalAlignment="Right" FontSize="12" FontWeight="SemiBold" Foreground="#4A90E2"/>
                                 </Grid>
                                 <ProgressBar x:Name="PressureBar" Height="10" Minimum="0" Maximum="100" Value="0" Foreground="#4A90E2" Background="#1B1B1F" BorderThickness="0"/>
@@ -218,11 +225,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Action:" FontSize="11" Foreground="#8E8E93"/>
+                                    <TextBlock x:Name="ActionLabelText" Text="Action:" FontSize="11" Foreground="#8E8E93"/>
                                     <TextBlock x:Name="ActionTypeText" Text="IDLE" FontWeight="SemiBold" FontSize="14"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="Tool:" FontSize="11" Foreground="#8E8E93"/>
+                                    <TextBlock x:Name="ToolLabelText" Text="Tool:" FontSize="11" Foreground="#8E8E93"/>
                                     <TextBlock x:Name="ToolTypeText" Text="STYLUS" FontWeight="SemiBold" FontSize="14"/>
                                 </StackPanel>
                             </Grid>
@@ -239,7 +246,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="Activity Log" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" Foreground="#8E8E93"/>
+                <TextBlock x:Name="ActivityLogLabelText" Text="Activity Log" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6" Foreground="#8E8E93"/>
                 <TextBox x:Name="LogTextBox" Grid.Row="1" Background="#141416" Foreground="#B0B0B5" BorderThickness="0"
                          IsReadOnly="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas, monospace" FontSize="11"/>
             </Grid>

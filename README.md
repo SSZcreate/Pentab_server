@@ -6,9 +6,11 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20(x64)-0078D6.svg)](https://microsoft.com/windows)
 [![.NET](https://img.shields.io/badge/.NET-8.0%20WPF-512BD4.svg)](https://dotnet.microsoft.com)
 
-**Android タブレットのタッチ・スタイラス入力を Windows マウス/ペン操作へ変換する超軽量・高精度常駐サーバー**
+**Ultra-lightweight resident PC server converting Android tablet touch and stylus inputs into native Windows mouse & pen actions**
 
-[Android クライアント (Pentab)](https://github.com/SSZcreate/Pentab) | [リリースページ](https://github.com/SSZcreate/Pentab_server/releases) | [技術仕様書 (docs)](docs/01_system_architecture.md)
+**[English](README.md)** | [日本語](README.ja.md) | [简体中文](README.zh.md)
+
+[Android Client (Pentab)](https://github.com/SSZcreate/Pentab) | [Releases](https://github.com/SSZcreate/Pentab_server/releases) | [Technical Docs](docs/01_system_architecture.md)
 
 </div>
 
@@ -20,100 +22,102 @@
 
 ---
 
-## 🌟 主な特徴
+## 🌟 Key Features
 
-- ⚡ **超高速・軽量な単一バイナリ**: 外部ランタイム不要のスタンドアロン単一 `.exe`（Self-Contained Single File）。
-- 🖱️ **低遅延 Win32 Direct Input Injection**: `user32.dll` の `SendInput` API をダイレクトに呼び出し、OS ネイティブの低遅延なマウス/ペン操作を実現。
-- 📊 **リアルタイム・モニタリング**:
-  - 受信パケットレート（Hz / FPS）のリアルタイム計測表示
-  - カーソル絶対座標（X, Y）、筆圧（Pressure）、入力モードのモニタリング
-- 📥 **システムトレイ（通知領域）常駐 & 自動起動**:
-  - Windows 起動時の自動起動（Auto-Start レジストリ登録）対応
-  - 起動時にトレイへ直接最小化するバックグラウンド常駐モード
-  - タスクトレイアイコンの右クリックメニュー / ダブルクリックで瞬時にウィンドウ表示
-- 🌐 **ADB 有線 & Wi-Fi ワイヤレス対応**:
-  - USB 有線接続時は `adb reverse` でポートフォワーディング
-  - ローカル IP アドレスを UI 上に自動検知・ワンクリックコピー可能
-- 🖥️ **マルチモニター & アスペクト比補正**:
-  - プライマリディスプレイおよびマルチモニター環境に対応
-  - タブレットと PC 画面のアスペクト比自動マッピング
+- ⚡ **Ultra-Fast & Lightweight Single Binary**: Standalone single executable `.exe` (Self-Contained Single File) requiring no external .NET runtime installation.
+- 🖱️ **Low Latency Win32 Direct Input Injection**: Direct P/Invoke to `user32.dll` `SendInput` API for lowest possible latency OS-native pointer control.
+- 📊 **Real-time Telemetry & Monitoring**:
+  - Live packet rate (Hz / EPS) counter
+  - Real-time Cursor Coordinates (X, Y), Stylus Pressure, and Action mode
+- 📥 **System Tray Resident & Windows Auto-Start**:
+  - Auto-Start on Windows boot (via Registry Run key)
+  - Direct startup to System Tray (Notification Area)
+  - Right-click tray menu & double-click to instantly restore window
+- 🌐 **Multi-Language UI (i18n)**:
+  - Instant one-click language switching between English, Japanese (日本語), and Simplified Chinese (简体中文).
+- 🔌 **ADB Wired & Wi-Fi Wireless Support**:
+  - Port forwarding via `adb reverse` for ultra-low latency wired experience
+  - Automatic local IP detection with one-click copy button
+- 🖥️ **Multi-Monitor & Aspect Ratio Mapping**:
+  - Supports Primary Display, specific secondary screens, or Entire Virtual Desktop
 
 ---
 
-## 📸 アプリケーション画面
+## 📸 Application Screenshots
 
 <div align="center">
   <img src="docs/images/server_ui.png" alt="Pentab Server PC Controller UI" width="85%" />
-  <p><em>Pentab Server メインウィンドウ（リアルタイム座標・筆圧・Hzモニタリング）</em></p>
+  <p><em>Pentab Server Main Window (Real-time Coords, Pressure, and Rate Monitoring)</em></p>
 </div>
 
 ---
 
-## 🚀 クイックスタート
+## 🚀 Quick Start
 
-### 1. ダウンロード
-[Releases](https://github.com/SSZcreate/Pentab_server/releases) から最新の `PentabServer-v1.0.0-win-x64.zip` をダウンロードし、任意のフォルダに解凍します。
+### 1. Download
+Download the latest `PentabServer-v1.0.0-win-x64.zip` from [Releases](https://github.com/SSZcreate/Pentab_server/releases) and extract it anywhere.
 
-### 2. サーバーの起動
-1. `PentabServer.exe` を実行します。
-2. 初回起動時に Windows Defender / ファイアウォールの警告が表示された場合は、「プライベートネットワーク」へのアクセスを許可してください。
+### 2. Launch Server
+1. Launch `PentabServer.exe`.
+2. If Windows Defender / Firewall prompts on initial launch, allow access for Private Networks.
 
-### 3. タブレットからの接続
+### 3. Connect Tablet
 
-#### A. USB 接続（推奨・超低遅延）
-1. タブレットを USB 接続し、コマンドプロンプトまたは PowerShell で以下を実行します：
+#### A. USB Connection (Recommended · Lowest Latency)
+1. Connect your Android tablet via USB with USB Debugging enabled, and run in PowerShell / CMD:
    ```bash
    adb reverse tcp:8765 tcp:8765
    ```
-2. タブレット側で `127.0.0.1:8765` のまま Connect をタップします。
+2. On your tablet, leave host as `127.0.0.1:8765` and tap **"Connect"**.
 
-#### B. Wi-Fi 接続（ワイヤレス）
-1. PC 画面上に表示されているローカル IP アドレス（例: `192.168.1.xxx`）の「Copy」ボタンを押します。
-2. タブレット側のホスト欄に入力して Connect をタップします。
+#### B. Wi-Fi Wireless Connection
+1. Click the "Copy" button next to the detected local IP (e.g. `192.168.1.xxx`).
+2. Enter the IP into your tablet's host field and tap **"Connect"**.
 
 ---
 
-## ⚙️ システム設定・常駐機能
+## ⚙️ Settings & Background Options
 
-| 設定項目 | 説明 |
+| Option | Description |
 | :--- | :--- |
-| **Windows 起動時に自動起動 (Auto-Start)** | チェックを入れると、PC 起動時に自動で PentabServer がバックグラウンド起動します。 |
-| **起動時にトレイへ最小化 (Start in Tray)** | 起動時にウィンドウを表示せず、タスクトレイ（インジケーター）に直接格納します。 |
-| **Hide to Tray [📥]** | ウィンドウをトレイに最小化します。トレイアイコンのダブルクリックで復帰します。 |
+| **Auto-Start with Windows** | Automatically launches PentabServer silently in background on Windows boot. |
+| **Start in Tray** | Starts minimized into the system notification area without displaying the main window. |
+| **Hide to Tray [📥]** | Minimizes window to system tray. Double-click tray icon to restore. |
+| **Language** | Switch UI language dynamically between English, Japanese, and Chinese. |
 
 ---
 
-## 🛠️ 開発・ビルド方法
+## 🛠️ Development & Build
 
-### 必要要件
+### Requirements
 - Windows 10 / 11 (x64)
 - .NET 8.0 SDK
 
-### ビルド手順
+### Build Instructions
 ```bash
-# リポジトリのクローン
+# Clone the repository
 git clone https://github.com/SSZcreate/Pentab_server.git
 cd Pentab_server
 
-# デバッグ実行
+# Debug Run
 dotnet run
 
-# スタンドアロン単一バイナリ (exe) の発行
+# Publish Standalone Single-file Executable
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
 ```
 
 ---
 
-## 📄 ドキュメント
+## 📄 Documentation
 
-- [システムアーキテクチャ設計書](docs/01_system_architecture.md)
-- [通信プロトコル仕様書 (WebSocket JSON)](docs/02_protocol_specification.md)
-- [Android クライアント実装仕様書](docs/03_android_client_specification.md)
-- [PC サーバー実装仕様書](docs/04_pc_server_specification.md)
-- [ビルド・デプロイガイド](docs/05_build_and_deployment_guide.md)
+- [System Architecture Document](docs/01_system_architecture.md)
+- [Protocol Specification (WebSocket JSON)](docs/02_protocol_specification.md)
+- [Android Client Specification](docs/03_android_client_specification.md)
+- [PC Server Specification](docs/04_pc_server_specification.md)
+- [Build and Deployment Guide](docs/05_build_and_deployment_guide.md)
 
 ---
 
-## 📜 ライセンス
+## 📜 License
 
-本プロジェクトは [MIT License](LICENSE) の下で公開されています。
+This project is licensed under the [MIT License](LICENSE).

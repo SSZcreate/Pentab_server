@@ -20,12 +20,19 @@ namespace PentabServer
         private readonly InputInjector _inputInjector;
         private readonly WebSocketServer _server;
         private readonly AppSettings _settings;
+        private readonly LocalizationManager _loc = LocalizationManager.Instance;
 
         private readonly DispatcherTimer _rateTimer;
         private int _eventCount = 0;
         private int _currentEps = 0;
 
         private Forms.NotifyIcon? _notifyIcon;
+        private Forms.ToolStripMenuItem? _trayOpenItem;
+        private Forms.ToolStripMenuItem? _trayStatusItem;
+        private Forms.ToolStripMenuItem? _trayAutoStartItem;
+        private Forms.ToolStripMenuItem? _trayServerItem;
+        private Forms.ToolStripMenuItem? _trayExitItem;
+
         private bool _isExplicitExit = false;
 
         public MainWindow()
@@ -50,6 +57,13 @@ namespace PentabServer
             _rateTimer.Tick += RateTimer_Tick;
             _rateTimer.Start();
 
+            // Initialize Localization
+            _loc.LanguageChanged += ApplyLocalization;
+            _loc.SetLanguage(_settings.Language);
+
+            // Set Language ComboBox Selection without triggering double event
+            SelectLanguageComboBoxItem(_settings.Language);
+
             // Initialize System Tray NotifyIcon
             InitializeNotifyIcon();
 
@@ -60,6 +74,7 @@ namespace PentabServer
 
             PopulateMonitors();
             PopulateLocalIps();
+            ApplyLocalization();
 
             // Auto start server immediately
             try
@@ -76,9 +91,86 @@ namespace PentabServer
             Loaded += MainWindow_Loaded;
         }
 
+        private void SelectLanguageComboBoxItem(string lang)
+        {
+            for (int i = 0; i < LanguageComboBox.Items.Count; i++)
+            {
+                if (LanguageComboBox.Items[i] is ComboBoxItem item && item.Tag?.ToString() == lang)
+                {
+                    LanguageComboBox.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+
+        private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LanguageComboBox.SelectedItem is ComboBoxItem item && item.Tag is string lang)
+            {
+                if (_settings.Language != lang)
+                {
+                    _settings.Language = lang;
+                    _settings.Save();
+                    _loc.SetLanguage(lang);
+                }
+            }
+        }
+
+        private void ApplyLocalization()
+        {
+            Title = _loc.Get("AppTitle");
+            HeaderTitleText.Text = _loc.Get("AppTitle");
+            HeaderSubtitleText.Text = _loc.Get("AppSubtitle");
+            MinimizeToTrayButton.Content = _loc.Get("HideToTray");
+
+            ConfigTitleText.Text = _loc.Get("ConfigTitle");
+            PortLabelText.Text = _loc.Get("Port");
+            TargetMonitorLabelText.Text = _loc.Get("TargetMonitor");
+            StartupOptionsLabelText.Text = _loc.Get("StartupOptions");
+            AutoStartCheckBox.Content = _loc.Get("AutoStart");
+            StartMinimizedCheckBox.Content = _loc.Get("StartInTray");
+
+            ToggleServerButton.Content = _server.IsRunning ? _loc.Get("StopServer") : _loc.Get("StartServer");
+            TestCursorButton.Content = _loc.Get("TestCursor");
+            QuickConnectAdbLabelText.Text = _loc.Get("QuickConnectAdb");
+            CopyAdbButton.Content = _loc.Get("CopyAdb");
+            WifiLocalIpsLabelText.Text = _loc.Get("WifiLocalIps");
+
+            LiveTelemetryLabelText.Text = _loc.Get("LiveTelemetry");
+            ConnectedClientLabelText.Text = _loc.Get("ConnectedClient");
+            EventRateLabelText.Text = _loc.Get("EventRate");
+            NormalizedCoordsLabelText.Text = _loc.Get("NormalizedCoords");
+            StylusPressureLabelText.Text = _loc.Get("StylusPressure");
+            ActionLabelText.Text = _loc.Get("Action");
+            ToolLabelText.Text = _loc.Get("Tool");
+            ActivityLogLabelText.Text = _loc.Get("ActivityLog");
+
+            if (!_server.IsRunning)
+            {
+                StatusText.Text = _loc.Get("StatusStopped");
+            }
+            else
+            {
+                StatusText.Text = _loc.Get("StatusRunning", _server.Port);
+            }
+
+            // Update Tray Menu Items
+            if (_trayOpenItem != null) _trayOpenItem.Text = _loc.Get("TrayOpen");
+            if (_trayAutoStartItem != null) _trayAutoStartItem.Text = _loc.Get("TrayStartWithWindows");
+            if (_trayServerItem != null) _trayServerItem.Text = _server.IsRunning ? _loc.Get("TrayStopServer") : _loc.Get("TrayStartServer");
+            if (_trayExitItem != null) _trayExitItem.Text = _loc.Get("TrayExit");
+            if (_trayStatusItem != null)
+            {
+                _trayStatusItem.Text = _server.IsRunning ? _loc.Get("StatusRunning", _server.Port) : _loc.Get("StatusStopped");
+            }
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.Text = _loc.Get("TrayTitle");
+            }
+        }
+
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // Check if launched with --minimized / --tray argument or StartMinimized setting
             string[] args = Environment.GetCommandLineArgs();
             bool hasMinimizedArg = Array.Exists(args, a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase) || a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
 
@@ -99,41 +191,49 @@ namespace PentabServer
 
                 var contextMenu = new Forms.ContextMenuStrip();
 
-                var openItem = new Forms.ToolStripMenuItem("Open Pentab Server (表示)");
-                openItem.Font = new System.Drawing.Font(openItem.Font, System.Drawing.FontStyle.Bold);
-                openItem.Click += (s, e) => ShowFromTray();
+                _trayOpenItem = new Forms.ToolStripMenuItem(_loc.Get("TrayOpen"));
+                _trayOpenItem.Font = new System.Drawing.Font(_trayOpenItem.Font, System.Drawing.FontStyle.Bold);
+                _trayOpenItem.Click += (s, e) => ShowFromTray();
 
-                var statusItem = new Forms.ToolStripMenuItem("Status: Running on Port 8765");
-                statusItem.Enabled = false;
+                _trayStatusItem = new Forms.ToolStripMenuItem(_loc.Get("StatusStopped"));
+                _trayStatusItem.Enabled = false;
 
-                var autoStartItem = new Forms.ToolStripMenuItem("Start with Windows (自動起動)");
-                autoStartItem.Checked = _settings.AutoStart;
-                autoStartItem.Click += (s, e) =>
+                _trayAutoStartItem = new Forms.ToolStripMenuItem(_loc.Get("TrayStartWithWindows"));
+                _trayAutoStartItem.Checked = _settings.AutoStart;
+                _trayAutoStartItem.Click += (s, e) =>
                 {
                     _settings.AutoStart = !_settings.AutoStart;
-                    autoStartItem.Checked = _settings.AutoStart;
+                    _trayAutoStartItem.Checked = _settings.AutoStart;
                     AutoStartCheckBox.IsChecked = _settings.AutoStart;
                     _settings.Save();
                 };
 
-                var exitItem = new Forms.ToolStripMenuItem("Exit (終了)");
-                exitItem.Click += (s, e) =>
+                _trayServerItem = new Forms.ToolStripMenuItem(_loc.Get("TrayStartServer"));
+                _trayServerItem.Click += (s, e) =>
+                {
+                    if (_server.IsRunning) _server.Stop();
+                    else _server.Start(_settings.Port);
+                };
+
+                _trayExitItem = new Forms.ToolStripMenuItem(_loc.Get("TrayExit"));
+                _trayExitItem.Click += (s, e) =>
                 {
                     _isExplicitExit = true;
                     Close();
                 };
 
-                contextMenu.Items.Add(openItem);
+                contextMenu.Items.Add(_trayOpenItem);
                 contextMenu.Items.Add(new Forms.ToolStripSeparator());
-                contextMenu.Items.Add(statusItem);
-                contextMenu.Items.Add(autoStartItem);
+                contextMenu.Items.Add(_trayStatusItem);
+                contextMenu.Items.Add(_trayServerItem);
+                contextMenu.Items.Add(_trayAutoStartItem);
                 contextMenu.Items.Add(new Forms.ToolStripSeparator());
-                contextMenu.Items.Add(exitItem);
+                contextMenu.Items.Add(_trayExitItem);
 
                 _notifyIcon = new Forms.NotifyIcon
                 {
                     Icon = icon,
-                    Text = "Pentab PC Server",
+                    Text = _loc.Get("TrayTitle"),
                     ContextMenuStrip = contextMenu,
                     Visible = true
                 };
@@ -155,8 +255,8 @@ namespace PentabServer
             {
                 _notifyIcon.ShowBalloonTip(
                     2000,
-                    "Pentab Server",
-                    "インジケーター（システムトレイ）で常駐しています。ダブルクリックで再表示できます。",
+                    _loc.Get("TrayTitle"),
+                    _loc.Get("TrayRunningText"),
                     Forms.ToolTipIcon.Info
                 );
             }
@@ -170,11 +270,6 @@ namespace PentabServer
             Focus();
         }
 
-        private void MinimizeToTrayButton_Click(object sender, RoutedEventArgs e)
-        {
-            HideToTray(showNotification: true);
-        }
-
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             if (WindowState == WindowState.Minimized)
@@ -183,11 +278,15 @@ namespace PentabServer
             }
         }
 
+        private void MinimizeToTrayButton_Click(object sender, RoutedEventArgs e)
+        {
+            HideToTray(showNotification: true);
+        }
+
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             if (!_isExplicitExit)
             {
-                // Minimize to tray instead of quitting
                 e.Cancel = true;
                 HideToTray(showNotification: true);
                 return;
@@ -209,6 +308,7 @@ namespace PentabServer
         private void AutoStartCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             _settings.AutoStart = AutoStartCheckBox.IsChecked == true;
+            if (_trayAutoStartItem != null) _trayAutoStartItem.Checked = _settings.AutoStart;
             _settings.Save();
             AppendLog($"Auto-start with Windows: {(_settings.AutoStart ? "Enabled" : "Disabled")}");
         }
@@ -301,17 +401,31 @@ namespace PentabServer
             }
             else if (MonitorComboBox.SelectedIndex == 1)
             {
-                _screenMapper.SelectedMonitorIndex = -2; // All screens
+                _screenMapper.SelectedMonitorIndex = -2; // Virtual Desktop
                 _settings.MonitorIndex = -2;
-                AppendLog("Target: Entire Virtual Desktop");
+                AppendLog("Target: Virtual Desktop (All Monitors)");
             }
-            else if (MonitorComboBox.SelectedIndex >= 2)
+            else if (MonitorComboBox.SelectedIndex > 1)
             {
-                _screenMapper.SelectedMonitorIndex = MonitorComboBox.SelectedIndex - 2;
-                _settings.MonitorIndex = _screenMapper.SelectedMonitorIndex;
-                AppendLog($"Target: Monitor {_screenMapper.SelectedMonitorIndex}");
+                int index = MonitorComboBox.SelectedIndex - 2;
+                _screenMapper.SelectedMonitorIndex = index;
+                _settings.MonitorIndex = index;
+                AppendLog($"Target: Monitor {index + 1}");
             }
             _settings.Save();
+        }
+
+        private void CopyAdbButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Clipboard.SetText($"adb reverse tcp:{PortTextBox.Text.Trim()} tcp:{PortTextBox.Text.Trim()}");
+                AppendLog(_loc.Get("CopiedAdb"));
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Clipboard error: {ex.Message}");
+            }
         }
 
         private void TestCursorButton_Click(object sender, RoutedEventArgs e)
@@ -326,49 +440,32 @@ namespace PentabServer
             }
         }
 
-        private void CopyAdbButton_Click(object sender, RoutedEventArgs e)
-        {
-            Clipboard.SetText("adb reverse tcp:8765 tcp:8765");
-            AppendLog("Copied ADB reverse command to clipboard.");
-        }
-
-        private void RateTimer_Tick(object? sender, EventArgs e)
-        {
-            _currentEps = _eventCount;
-            _eventCount = 0;
-            EventRateText.Text = $"{_currentEps} eps";
-        }
-
         private void OnServerStateChanged(bool isRunning)
         {
             Dispatcher.Invoke(() =>
             {
                 if (isRunning)
                 {
-                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)); // Green
-                    StatusText.Text = $"Running on port {_server.Port}";
-                    ToggleServerButton.Content = "Stop Server";
-                    ToggleServerButton.Background = new SolidColorBrush(Color.FromRgb(0xD3, 0x2F, 0x2F));
+                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
+                    StatusText.Text = _loc.Get("StatusRunning", _server.Port);
+                    ToggleServerButton.Content = _loc.Get("StopServer");
+                    ToggleServerButton.Background = new SolidColorBrush(Color.FromRgb(229, 57, 53)); // Red
                     PortTextBox.IsEnabled = false;
 
-                    if (_notifyIcon != null)
-                    {
-                        _notifyIcon.Text = $"Pentab Server (Port: {_server.Port})";
-                    }
+                    if (_trayStatusItem != null) _trayStatusItem.Text = _loc.Get("StatusRunning", _server.Port);
+                    if (_trayServerItem != null) _trayServerItem.Text = _loc.Get("TrayStopServer");
                 }
                 else
                 {
-                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0x52, 0x52)); // Red
-                    StatusText.Text = "Server Stopped";
-                    ToggleServerButton.Content = "Start Server";
-                    ToggleServerButton.Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x7A, 0xFE));
+                    StatusDot.Fill = new SolidColorBrush(Color.FromRgb(255, 82, 82)); // Red
+                    StatusText.Text = _loc.Get("StatusStopped");
+                    ToggleServerButton.Content = _loc.Get("StartServer");
+                    ToggleServerButton.Background = new SolidColorBrush(Color.FromRgb(58, 122, 254)); // Blue
                     PortTextBox.IsEnabled = true;
-                    ClientIpText.Text = "None";
+                    ClientIpText.Text = _loc.Get("None");
 
-                    if (_notifyIcon != null)
-                    {
-                        _notifyIcon.Text = "Pentab Server (Stopped)";
-                    }
+                    if (_trayStatusItem != null) _trayStatusItem.Text = _loc.Get("StatusStopped");
+                    if (_trayServerItem != null) _trayServerItem.Text = _loc.Get("TrayStartServer");
                 }
             });
         }
@@ -378,16 +475,7 @@ namespace PentabServer
             Dispatcher.Invoke(() =>
             {
                 ClientIpText.Text = clientIp;
-
-                if (_notifyIcon != null)
-                {
-                    _notifyIcon.ShowBalloonTip(
-                        1500,
-                        "Pentab Connected",
-                        $"Android tablet ({clientIp}) connected successfully.",
-                        Forms.ToolTipIcon.Info
-                    );
-                }
+                AppendLog($"Client connected: {clientIp}");
             });
         }
 
@@ -395,7 +483,13 @@ namespace PentabServer
         {
             Dispatcher.Invoke(() =>
             {
-                ClientIpText.Text = "None";
+                ClientIpText.Text = _loc.Get("None");
+                EventRateText.Text = "0 eps";
+                CoordsText.Text = "0.000, 0.000";
+                PressureBar.Value = 0;
+                PressureValueText.Text = "0.0%";
+                ActionTypeText.Text = "IDLE";
+                AppendLog("Client disconnected");
             });
         }
 
@@ -403,14 +497,12 @@ namespace PentabServer
         {
             _eventCount++;
 
-            // Throttle UI update to keep max performance
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            Dispatcher.Invoke(() =>
             {
                 CoordsText.Text = $"{data.X:F3}, {data.Y:F3}";
-                PressureBar.Value = data.Pressure * 100.0;
-                PressureValueText.Text = $"{(data.Pressure * 100.0):F1}%";
+                PressureBar.Value = data.Pressure * 100f;
+                PressureValueText.Text = $"{data.Pressure * 100f:F1}%";
                 ActionTypeText.Text = data.Action;
-
                 ToolTypeText.Text = data.ToolType switch
                 {
                     ToolType.Stylus => "STYLUS",
@@ -422,9 +514,16 @@ namespace PentabServer
             });
         }
 
+        private void RateTimer_Tick(object? sender, EventArgs e)
+        {
+            _currentEps = _eventCount;
+            _eventCount = 0;
+            EventRateText.Text = $"{_currentEps} eps";
+        }
+
         private void OnLogMessage(string message)
         {
-            Dispatcher.BeginInvoke(() =>
+            Dispatcher.Invoke(() =>
             {
                 AppendLog(message);
             });
@@ -432,8 +531,8 @@ namespace PentabServer
 
         private void AppendLog(string message)
         {
-            var timestamp = DateTime.Now.ToString("HH:mm:ss");
-            LogTextBox.AppendText($"[{timestamp}] {message}\n");
+            string time = DateTime.Now.ToString("HH:mm:ss");
+            LogTextBox.AppendText($"[{time}] {message}\n");
             LogTextBox.ScrollToEnd();
         }
     }

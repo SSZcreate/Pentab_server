@@ -166,28 +166,28 @@ namespace PentabServer.Services
             }
 
             // 2. Handle Clicks
-            if (action == ActionType.Click || clickType == "LEFT")
+            if (action == ActionType.Click || !string.IsNullOrEmpty(clickType))
             {
-                LeftClick();
-                try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected LeftClick\n"); } catch { }
-                return;
-            }
-            else if (clickType == "RIGHT")
-            {
-                RightClick();
-                try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected RightClick\n"); } catch { }
-                return;
-            }
-            else if (clickType == "MIDDLE" || clickType == "MIDDLE_CLICK")
-            {
-                MiddleClick();
-                try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected MiddleClick\n"); } catch { }
-                return;
-            }
-            else if (clickType == "DOUBLE_LEFT")
-            {
-                DoubleLeftClick();
-                try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected DoubleLeftClick\n"); } catch { }
+                if (clickType == "RIGHT" || action == "CLICK_RIGHT")
+                {
+                    RightClick();
+                    try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected RightClick\n"); } catch { }
+                }
+                else if (clickType == "MIDDLE" || clickType == "MIDDLE_CLICK" || action == "CLICK_MIDDLE")
+                {
+                    MiddleClick();
+                    try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected MiddleClick\n"); } catch { }
+                }
+                else if (clickType == "DOUBLE_LEFT")
+                {
+                    DoubleLeftClick();
+                    try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected DoubleLeftClick\n"); } catch { }
+                }
+                else
+                {
+                    LeftClick();
+                    try { File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "server_debug.log"), $"[{DateTime.Now:HH:mm:ss.fff}] Injected LeftClick\n"); } catch { }
+                }
                 return;
             }
 

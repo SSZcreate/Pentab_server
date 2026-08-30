@@ -1,0 +1,12 @@
+﻿{
+    "discord-goal-notifier":  {
+                                  "Stop":  [
+                                               {
+                                                   "command":  "python C:/Users/ok122/notify_scripts/notify_discord.py",
+                                                   "timeout":  15,
+                                                   "type":  "command"
+                                               }
+                                           ],
+                                  "enabled":  true
+                              }
+}

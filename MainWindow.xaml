@@ -8,6 +8,8 @@
         Title="Pentab PC Server" Height="620" Width="880"
         Background="#121214" Foreground="#E0E0E0"
         WindowStartupLocation="CenterScreen"
+        WindowState="Normal"
+        ShowInTaskbar="True"
         FontFamily="Segoe UI, Meiryo UI, sans-serif">
 
     <Window.Resources>

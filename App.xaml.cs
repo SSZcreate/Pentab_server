@@ -9,18 +9,36 @@ public partial class App : System.Windows.Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        base.OnStartup(e);
+
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
-            File.WriteAllText("crash.log", args.ExceptionObject.ToString());
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"),
+                    args.ExceptionObject?.ToString() ?? "Unknown exception"
+                );
+            }
+            catch { }
         };
 
         DispatcherUnhandledException += (s, args) =>
         {
-            File.WriteAllText("crash.log", args.Exception.ToString());
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"),
+                    args.Exception?.ToString() ?? "Unknown dispatcher exception"
+                );
+            }
+            catch { }
             args.Handled = true;
         };
 
-        base.OnStartup(e);
+        var mainWindow = new MainWindow();
+        mainWindow.Show();
+        mainWindow.Activate();
+        mainWindow.Focus();
     }
 }
-
